@@ -9,7 +9,7 @@ by [Fabian **Plum**](https://twitter.com/fabian_plum) and [David **Labonte**](ht
 
 ___
 
-![](colony_volli_full_final.jpg)
+![](images/colony_volli_full_final.jpg)
 
 _rendered image of synthetic leafcutter ant colony, digitised using [scAnt](https://github.com/evo-biomech/scAnt), rigged and rendered in [Blender](https://www.blender.org/), synthetic datasets generated with [replicAnt](https://github.com/evo-biomech/replicAnt) in [Unreal Engine](https://www.unrealengine.com/en-US)_
 
@@ -19,6 +19,38 @@ ___
 
 This repo and page are a work in progress and will be continuously updated as Fabi attempts to submit his PhD thesis by the end of the year.
 ___
+
+# Example synthetic images
+
+Generated from 3D models of specimens digitised with the latest build of [scAnt](https://github.com/evo-biomech/scAnt).
+
+![](images/1.1_mg_comp_old_new.jpg)
+
+### _Atta vollenweideri_ - 20 weight class dataset:
+
+The following samples are part of the datasets used to train detection, regressor, and classifier networks, and
+have been generated with [***replicAnt* - generating annotated images of animals in complex environments with Unreal
+Engine**](https://www.biorxiv.org/content/10.1101/2023.04.20.537685v1).
+
+
+
+<table style="padding:10px">
+  <tr> 
+   <td><img src=images/Pretty_samples/Atta-vollenweideri-synth-equilised-histograms-PLANTS_00000.JPG width = 500px ></td>
+   <td><img src=images/Pretty_samples/Atta-vollenweideri-synth-equilised-histograms-PLANTS_00002.JPG width = 500px ></td>
+   <td><img src=images/Pretty_samples/Atta-vollenweideri-synth-equilised-histograms-PLANTS_00003.JPG width = 500px ></td>
+  </tr>
+  <tr> 
+   <td><img src=images/Pretty_samples/Atta-vollenweideri-synth-equilised-histograms-PLANTS_00004.JPG width = 500px ></td>
+   <td><img src=images/Pretty_samples/Atta-vollenweideri-synth-equilised-histograms-PLANTS_00005.JPG width = 500px ></td>
+   <td><img src=images/Pretty_samples/Atta-vollenweideri-synth-equilised-histograms-PLANTS_00006.JPG width = 500px ></td>
+  </tr>
+  <tr> 
+   <td><img src=images/Pretty_samples/Atta-vollenweideri-synth-equilised-histograms-PLANTS_00007.JPG width = 500px ></td>
+   <td><img src=images/Pretty_samples/Atta-vollenweideri-synth-equilised-histograms-PLANTS_00009.JPG width = 500px ></td>
+   <td><img src=images/Pretty_samples/Atta-vollenweideri-synth-equilised-histograms-PLANTS_00015.JPG width = 500px ></td>
+  </tr>
+</table>
 
 ### References
 
