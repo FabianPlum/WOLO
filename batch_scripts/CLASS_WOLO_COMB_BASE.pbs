@@ -1,0 +1,31 @@
+#PBS -l walltime=72:00:00
+#PBS -l select=1:ncpus=64:mem=128gb:ngpus=1:gpu_type=RTX6000
+
+module load cuda/11.4.2
+module load cudnn/8.2.4
+module load anaconda3/personal
+source activate DEEPLABCUT
+
+SEED=0
+OUTDIR=$HOME/WOLO
+OUTPUT=training_Efficient_REAL_and_SIMPLE_SYTH_verbose
+
+## copy dataset and training script
+cp $OUTDIR/MultiCamAnts/train.zip $TMPDIR
+cp $OUTDIR/MultiCamAnts/Atta-vollenweideri_synth-equalised-histograms-SIMPLE-high-contrast-TF-CLASS-128-fix.zip $TMPDIR
+cp $OUTDIR/MultiCamAnts/test.zip $TMPDIR
+cp $OUTDIR/TF2_SYNTH_CLASSIFICATION.py $TMPDIR
+
+## unzip dataset
+unzip -qq train.zip
+unzip -qq Atta-vollenweideri_synth-equalised-histograms-SIMPLE-high-contrast-TF-CLASS-128-fix.zip
+unzip -qq test.zip
+
+## combine REAL and SYNTH datasets
+cp -nr Atta-vollenweideri_synth-equalised-histograms-SIMPLE-high-contrast-TF-CLASS-128-fix/* train
+
+## run training
+PYTHONHASHSEED=$SEED python TF2_SYNTH_CLASSIFICATION.py --sigma 2 --dataset train --rand_seed $SEED --output_dir $OUTPUT --backbone Efficient --epochs 10 --batch_size 128 --augmentation True --test test
+
+## copy back trained weights
+cp -r $OUTPUT $OUTDIR

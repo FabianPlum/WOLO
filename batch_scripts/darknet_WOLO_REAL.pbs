@@ -1,0 +1,27 @@
+#PBS -l walltime=72:00:00
+#PBS -l select=1:ncpus=128:mem=128gb:ngpus=1:gpu_type=RTX6000
+module load anaconda3/personal
+source activate DEEPLABCUT
+
+module load cuda/11.4.2
+module load cudnn/8.2.4
+
+DATA=$HOME/FARTS/BENCHMARK/MultiCamAnts_YOLO.zip
+CONFIG=$HOME/FARTS/BENCHMARK/yolov4_20_class_WOLO.cfg
+DARKNET=$HOME/FARTS/darknet
+OUTDIR=$HOME/FARTS/BENCHMARK/MultiCamAnts_YOLO
+
+mkdir -p -v $OUTDIR
+
+cp -r $DARKNET $TMPDIR
+cp $DATA $TMPDIR
+cp $CONFIG $TMPDIR/darknet
+cp $HOME/FARTS/BENCHMARK/createCustomFiles.py $TMPDIR
+
+## unzip, generate train.txt from (combined) data, and move dataset
+unzip -qq MultiCamAnts_YOLO.zip
+python createCustomFiles.py -t 0 -o MultiCamAnts_YOLO -s True -b $OUTDIR
+mv -f MultiCamAnts_YOLO/data $TMPDIR/darknet
+
+cd darknet
+./darknet detector train data/obj.data yolov4_20_class_WOLO.cfg yolov4.conv.137

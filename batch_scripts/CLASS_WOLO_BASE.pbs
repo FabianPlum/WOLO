@@ -1,0 +1,22 @@
+#PBS -l walltime=72:00:00
+#PBS -l select=1:ncpus=64:mem=128gb:ngpus=1:gpu_type=RTX6000
+
+module load cuda/11.4.2
+module load cudnn/8.2.4
+module load anaconda3/personal
+source activate DEEPLABCUT
+
+OUTDIR=$HOME/WOLO
+OUTPUT=$OUTDIR/CLASS_WOLO_BASE
+
+## copy dataset and training script
+cp $OUTDIR/DATASETS/MultiCamAnts/train.zip $TMPDIR
+cp $OUTDIR/DATASETS/MultiCamAnts/test.zip $TMPDIR
+cp $OUTDIR/TF2_SYNTH_CLASSIFICATION.py $TMPDIR
+
+## unzip dataset
+unzip -qq train.zip
+unzip -qq test.zip
+
+## run training
+PYTHONHASHSEED=$SEED python TF2_SYNTH_CLASSIFICATION.py --sigma 0 --dataset train --rand_seed 0 --output_dir $OUTPUT --epochs 50 --batch_size 128 --test test --save_weights_every 5
