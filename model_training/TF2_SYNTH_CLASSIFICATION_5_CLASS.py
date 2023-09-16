@@ -2,6 +2,7 @@ import os  # to perform file operations
 from os.path import isfile, join
 import argparse
 import pickle
+import math
 import random
 from sklearn.utils import shuffle
 from contextlib import redirect_stdout
@@ -25,14 +26,26 @@ print(tf.__version__)
 
 
 # import function to load image data and read labels for the y vector
-def importLabeledImages(target_directory):
+def importLabeledImages(target_directory, make_five_class=True):
     X = []
     y = []
+    y_gt = []
+    unique_classes = 0
+    y_five_class_list = [0.0013, 0.0030, 0.0068, 0.0154, 0.0351]
+    class_counter = -1
+
     for cl, folder in enumerate(os.listdir(target_directory)):
         print(join(target_directory, folder))
+        if make_five_class:
+            if cl % 4 == 0:
+                class_counter += 1
+            print("Adjusted class:", class_counter, "corresponding to", y_five_class_list[class_counter])
         for filename in os.listdir(join(target_directory, folder)):
             X.append(join(target_directory, folder, filename))
-
+            if make_five_class:
+                y.append(class_counter)
+            else:
+                y.append(cl)
             try:
                 y_val = float(filename.split(" ")[-1][:-4])
             except ValueError:
@@ -44,53 +57,147 @@ def importLabeledImages(target_directory):
                 currently some datasets use 0.003 to express 3 mg
                 and some use 00030 to express 3 mg
                 """
-            y.append(y_val)
+            y_gt.append(y_val)
 
-    return X, y
+        if not make_five_class:
+            unique_classes += 1
+
+    if make_five_class:
+        unique_classes = int(class_counter + 1)
+
+    return X, y, y_gt, unique_classes
 
 
-def MAPE(y_true, y_pred, scaling_factor=1, min_val=0):
+def MAPE(y_true, y_pred, classes=[0.0010, 0.0012, 0.0015, 0.0019, 0.0023, 0.0028,
+                                  0.0034, 0.0042, 0.0052, 0.0064, 0.0078, 0.0096,
+                                  0.0118, 0.0145, 0.0179, 0.0219, 0.0270, 0.0331,
+                                  0.0407, 0.0500],
+         y_five_class_list=[0.0013, 0.0030, 0.0068, 0.0154, 0.0351]):
     """
     Compute the MAPE (Mean Absolute Percentage Error) from the true and the predicted classes
     Supports batches, thus shapes of (batch x num_classes)
     :param y_true: ground truth of length m x n
     :param y_pred: prediction of length m x n
-    :param scaling_factor: used to de-normalise values
-    :param min_val: when de-normalising for MSE, include 0 value subtraction
-    :param delog: reverting applied log and normalisation before computing MAPE
+    :param classes: int or float vector of length n
     :return: MAPE
     """
 
-    if LOG:
-        y_true = delog_and_denorm(y_true)
-        y_pred = delog_and_denorm(y_pred)
+    if args["five_class"]:
+        classes = y_five_class_list
 
-    APE = tf.math.abs(
-        tf.math.divide(((y_true + min_val) * scaling_factor - (y_pred + min_val) * scaling_factor),
-                       (y_true + min_val) * scaling_factor))
-    MAPE = tf.math.multiply(tf.constant(100, tf.float32), tf.math.reduce_mean(APE, axis=-1))
+    try:
+        if y_true.shape[0] is None:
+            batchsize = 1
+        else:
+            batchsize = y_true.shape[0]
+    except AttributeError:
+        batchsize = len(y_true)
+
+    MAPE_list = []
+
+    for b in range(batchsize):
+        y_true_class = tf.gather(classes, tf.argmax(y_true[b]))  # classes[tf.argmax(y_true[b], axis=1)]
+        y_pred_class = tf.gather(classes, tf.argmax(y_pred[b]))  # classes[tf.argmax(y_pred[b], axis=1)]
+
+        APE = tf.math.abs(tf.math.divide((y_true_class - y_pred_class), y_true_class))
+        MAPE_list.append(APE)
+
+    MAPE = tf.math.multiply(tf.constant(100, tf.float32), tf.math.reduce_mean(tf.stack(MAPE_list)))
     return MAPE
 
 
-def log_and_norm(y, y_min=0.0001, y_max=0.05, y_range=[0, 1]):
-    y_log = tf.math.log(y)
-    y_min_log = tf.math.log(y_min)
-    y_max_log = tf.math.log(y_max)
+def MAPE_true(y_gt, y_pred, classes=[0.0010, 0.0012, 0.0015, 0.0019, 0.0023, 0.0028,
+                                     0.0034, 0.0042, 0.0052, 0.0064, 0.0078, 0.0096,
+                                     0.0118, 0.0145, 0.0179, 0.0219, 0.0270, 0.0331,
+                                     0.0407, 0.0500],
+              classes_upper_limit=[0.0011, 0.0013, 0.0017, 0.0021, 0.0025, 0.0031,
+                                   0.0038, 0.0047, 0.0058, 0.0071, 0.0087, 0.0107,
+                                   0.0131, 0.0162, 0.0199, 0.0244, 0.0300, 0.0369, 0.0453
+                                   ],
+              y_five_class_list=[0.0013, 0.0030, 0.0068, 0.0154, 0.0351],
+              y_five_class_list_upper_limit=[0.0021, 0.0047, 0.0107, 0.0244]):
+    """
+    Compute the MAPE_true (Mean Absolute Percentage Error) from the ground truth value and the predicted classes
+    Supports batches, thus shapes of (batch x num_classes)
+    :param y_gt: ground truth of length m
+    :param y_pred: prediction of length m x n
+    :param classes: int or float vector of length n
+    :param classes_upper_limit: int or float vector of length n, containing upper class limit to compute MAPE_ideal
+    :return: MAPE_true, MAPE_ideal
+    """
 
-    y_normalised = y_range[0] + ((y_range[1] - y_range[0]) / (y_max_log - y_min_log)) * (y_log - y_min_log)
+    if args["five_class"]:
+        classes = y_five_class_list
+        classes_upper_limit=y_five_class_list_upper_limit
 
-    return y_normalised
+    if y_pred.shape[0] is None:
+        batchsize = 1
+    else:
+        batchsize = y_pred.shape[0]
+
+    MAPE_list = []
+    MAPE_ideal_list = []
+
+    for b in range(batchsize):
+        y_gt_val = y_gt[b]
+        y_class_temp = 0
+        for c, cl in enumerate(classes_upper_limit):
+            if cl < y_gt_val:
+                y_class_temp = c
+            else:
+                break
+
+        y_pred_class = tf.gather(classes, tf.argmax(y_pred[b]))  # classes[tf.argmax(y_pred[b], axis=1)]
+        # get APE_true
+        APE_true = tf.math.abs(tf.math.divide((y_gt_val - y_pred_class), y_gt_val))
+        MAPE_list.append(APE_true)
+
+        # get APE_ideal
+        APE_idel = tf.math.abs(tf.math.divide((y_gt_val - classes_upper_limit[y_class_temp]), y_gt_val))
+        MAPE_ideal_list.append(APE_idel)
+
+    MAPE_true_val = tf.math.multiply(tf.constant(100, tf.float32), tf.math.reduce_mean(tf.stack(MAPE_list)))
+    MAPE_ideal_val = tf.math.multiply(tf.constant(100, tf.float32), tf.math.reduce_mean(tf.stack(MAPE_ideal_list)))
+    return MAPE_true_val, MAPE_ideal_val
 
 
-def delog_and_denorm(y_ln, y_min=0.0001, y_max=0.05, y_range=[0, 1]):
-    y_min_log = tf.math.log(y_min)
-    y_max_log = tf.math.log(y_max)
+def make_gauss_pdf(y, sigma=1, sum_to_one=True, num_classes=20):
+    """
+    y : label vector (one-hot encoded) with length n classes
+    sigma : standard deviation of probability density function
 
-    y_log = (y_ln - y_range[0]) / ((y_range[1] - y_range[0]) / (y_max_log - y_min_log)) + y_min_log
+    the distribution will be centered around the maximum activation
+    which will subsequently treated as the dsitribution mean
+    """
 
-    y = tf.math.exp(y_log)
+    y_gauss = []
 
-    return y
+    # mu = 3  #
+    if y.shape == () or y.shape[0] is None:
+        mu = tf.constant(0)
+    else:
+        mu = tf.argmax(y)
+
+    for c in range(num_classes):
+        y_gauss_a = tf.math.divide(tf.constant(1, tf.float32),
+                                   tf.math.multiply(tf.constant(sigma, tf.float32),
+                                                    tf.math.sqrt(
+                                                        tf.constant(2 * math.pi, tf.float32)))),
+        y_gauss_b = tf.math.exp(
+            tf.math.divide(-tf.math.square(tf.constant(c, tf.float32) - tf.cast(mu, tf.float32)),
+                           tf.math.multiply(tf.constant(2, tf.float32),
+                                            tf.math.square(tf.constant(sigma, tf.float32)))))
+
+        y_gauss.append(tf.math.multiply(y_gauss_a, y_gauss_b))
+
+    # to use softmax for the final activation layer the sum of the PDF should be equal to one
+    y_gauss = tf.stack(y_gauss)
+
+    if sum_to_one:
+        mult_fact = tf.math.reduce_sum(y_gauss)
+    y_gauss = tf.math.divide(y_gauss, mult_fact)
+
+    return tf.reshape(y_gauss, y.shape)
 
 
 def parse_function(filename, label):
@@ -103,6 +210,34 @@ def parse_function(filename, label):
     image = tf.image.convert_image_dtype(image, tf.float32)
 
     return image, label
+
+
+def balance_classes(X, y, y_gt, shuffle=False, SEED=0):
+    # assumes values are shuffled, if not set shuffle to True
+    if shuffle:
+        X, y, y_gt = shuffle(X, y, y_gt, trandom_state=SEED)
+
+    classes, classes_count = np.unique(np.array(y), return_counts=True)
+
+    ordered_class_representation = classes_count.argsort()
+    classes = classes[ordered_class_representation]
+    max_num_samples = classes_count[ordered_class_representation][0]
+
+    print("Minimum num samples:", classes_count[ordered_class_representation][0], "for class", classes[0])
+    print("Reducing number of samples for all other classes to balance dataset to smallest representation...")
+
+    X_new, y_new, y_gt_new = [], [], []
+
+    element_counter = np.zeros(len(classes))
+
+    for x_elem, y_elem, y_gt_elem in zip(X, y, y_gt):
+        if element_counter[y_elem] < max_num_samples:
+            X_new.append(x_elem)
+            y_new.append(y_elem)
+            y_gt_new.append(y_gt_elem)
+            element_counter[y_elem] += 1
+
+    return X_new, y_new, y_gt_new
 
 
 def build_with_Xception(input_shape, output_nodes=1, refine=False):
@@ -145,21 +280,19 @@ def build_with_Xception(input_shape, output_nodes=1, refine=False):
     # x4 = keras.layers.Dense(1024, activation="relu")(x3_d)  # 1024
     # x4_d = tf.keras.layers.Dropout(.2)(x4)
 
-    outputs = keras.layers.Dense(output_nodes)(x3_d)
+    outputs = keras.layers.Dense(output_nodes, activation='softmax')(x3_d)
 
     model = keras.Model(inputs, outputs)
 
     return model
 
 
-def ALT_build_with_EfficientNet(input_shape, output_nodes=1, refine=False):
+def build_with_EfficientNet(input_shape, output_nodes=1, refine=False):
     # Load weights pre-trained on ImageNet.
     # Do not include the ImageNet classifier at the top.
     base_model = keras.applications.efficientnet.EfficientNetB7(weights="imagenet",
                                                                 input_shape=input_shape,
-                                                                include_top=False,
-                                                                pooling="avg")
-
+                                                                include_top=False)
     # freeze the weights of the backbone
     base_model.trainable = refine
 
@@ -170,15 +303,16 @@ def ALT_build_with_EfficientNet(input_shape, output_nodes=1, refine=False):
     # Pre-trained Xception weights requires that input be scaled
     # from (0, 255) to a range of (-1., +1.), the rescaling layer
     # outputs: `(inputs * scale) + offset`
-    scale_layer = keras.layers.Rescaling(scale=1 / 127.5, offset=-1)
-    x = scale_layer(inputs)
+    # scale_layer = keras.layers.Rescaling(scale=1 / 127.5, offset=-1)
+    # x = scale_layer(inputs)
 
     # The base model contains batchnorm layers. We want to keep them in inference mode
     # when we unfreeze the base model for fine-tuning, so we make sure that the
     # base_model is running in inference mode here.
-    xa = base_model(x, training=False)
-    # x1 = keras.layers.GlobalAveragePooling2D()(xa)
-    x1_d = tf.keras.layers.Dropout(.2)(xa)
+    xa = base_model(inputs, training=False)
+
+    x1 = keras.layers.GlobalAveragePooling2D()(xa)
+    x1_d = tf.keras.layers.Dropout(.2)(x1)
     # A Dense classifier with a single unit
     x2 = keras.layers.Dense(4096, activation="relu")(x1_d)  # 1024
     x2_d = tf.keras.layers.Dropout(.2)(x2)
@@ -186,31 +320,7 @@ def ALT_build_with_EfficientNet(input_shape, output_nodes=1, refine=False):
     x3 = keras.layers.Dense(4096, activation="relu")(x2_d)  # 1024
     x3_d = tf.keras.layers.Dropout(.2)(x3)
 
-    outputs = keras.layers.Dense(output_nodes)(x3_d)
-
-    model = keras.Model(inputs, outputs)
-
-    return model
-
-
-def build_with_EfficientNet(input_shape, output_nodes=1, refine=False):
-    inputs = keras.Input(shape=input_shape)
-
-    base_model = keras.applications.efficientnet.EfficientNetB0(include_top=False,
-                                                                input_shape=input_shape,
-                                                                input_tensor=inputs,
-                                                                weights="imagenet")
-
-    # Freeze the pretrained weights
-    base_model.trainable = refine
-
-    # Rebuild top
-    x = keras.layers.GlobalAveragePooling2D(name="avg_pool")(base_model.output)
-    x = keras.layers.BatchNormalization()(x)
-
-    top_dropout_rate = 0.2
-    x = keras.layers.Dropout(top_dropout_rate, name="top_dropout")(x)
-    outputs = keras.layers.Dense(output_nodes, name="pred")(x)
+    outputs = keras.layers.Dense(output_nodes, activation='softmax')(x3_d)
 
     model = keras.Model(inputs, outputs)
 
@@ -218,25 +328,24 @@ def build_with_EfficientNet(input_shape, output_nodes=1, refine=False):
 
 
 if __name__ == "__main__":
-    # limit number of simultaneously used cores / threads
-    # os.environ["OPENBLAS_NUM_THREADS"] = "8"  # export OPENBLAS_NUM_THREADS=8
 
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
     # Data input and output
+    ap.add_argument("-s", "--sigma", default=0, type=float)
     ap.add_argument("-d", "--dataset", required=True, type=str)
     ap.add_argument("-r", "--rand_seed", default=0, required=False, type=int)
     ap.add_argument("-o", "--output_dir", required=True, type=str)
     ap.add_argument("-b", "--backbone", default="Xception", required=False, type=str)
-    ap.add_argument("-l", "--LOSS", default="MAPE", required=False, type=str)
 
     # Optional flags
+    ap.add_argument("-ba", "--balance_classes", default=False, required=False, type=bool)
     ap.add_argument("-e", "--epochs", default=10, required=False, type=int)
     ap.add_argument("-bs", "--batch_size", default=128, required=False, type=int)
     ap.add_argument("-sw", "--save_weights_every", default=10, required=False, type=int)
     ap.add_argument("-aug", "--augmentation", default=True, required=False, type=bool)
-    ap.add_argument("-log", "--log_transform", default=False, required=False, type=bool)
     ap.add_argument("-t", "--test", default=False, required=False, type=str)
+    ap.add_argument("-fc", "--five_class", default=False, required=False, type=bool)
 
     args = vars(ap.parse_args())
 
@@ -247,12 +356,12 @@ if __name__ == "__main__":
     SAVE_WEIGHTS_EVERY = int(args["save_weights_every"])
     BATCH_SIZE = int(args["batch_size"])
     VERBOSE = 2
+    SIGMA = float(args["sigma"])  # for class-aware gaussian label smoothing
     OPTIMIZER = "adam"
-    LOSS = args["LOSS"]
-    LOG = args["log_transform"]
+    LOSS = "categorical_crossentropy"
     IMG_ROWS, IMG_COLS = 128, 128
     INPUT_SHAPE_RGB = (IMG_ROWS, IMG_COLS, 3)
-    NUM_PARALLEL_CALLS = tf.data.AUTOTUNE  # -> use AUTOTUNE only on GPU, otherwise it wants ALL the CPUs on HPC
+    NUM_PARALLEL_CALLS = tf.data.AUTOTUNE
     DATA_PATH = args["dataset"]
     TEST_DATA = args["test"]
     SEED = int(args["rand_seed"])
@@ -263,31 +372,35 @@ if __name__ == "__main__":
           "\nSAVE_WEIGHTS_EVERY: ", SAVE_WEIGHTS_EVERY,
           "\nBATCH_SIZE: ", BATCH_SIZE,
           "\nVERBOSE: ", VERBOSE,
+          "\nSIGMA: ", SIGMA,
           "\nOPTIMIZER: ", OPTIMIZER,
           "\nLOSS: ", LOSS,
-          "\nLOG_DATA", LOG,
           "\nDATA_PATH: ", DATA_PATH,
           "\nTEST_DATA: ", TEST_DATA,
           "\nSEED: ", SEED)
 
-    if args["augmentation"]:
+    if args["balance_classes"] == True:
+        print("\nINFO: Using balanced classes (all classes contain number of samples of smallest class)")
+    else:
+        print("\nINFO: Classes are not re-balanced")
+
+    if SIGMA > 0:
+        print("INFO: Using class-aware gaussian label smoothing")
+    else:
+        print("INFO: Using default one-hot encoding")
+
+    if args["augmentation"] == True:
         print("\nINFO: Data augmentation - enabled\n")
 
         trainAug = tf.keras.Sequential([
             tf.keras.layers.RandomFlip("horizontal_and_vertical"),
-            tf.keras.layers.RandomZoom(
-                height_factor=(-0.05, -0.15),
-                width_factor=(-0.05, -0.15)),
-            tf.keras.layers.RandomRotation(0.3),
-            tf.keras.layers.RandomBrightness(0.2),
-            tf.keras.layers.RandomContrast(0.2)
+            tf.keras.layers.RandomRotation(0.05),
+            tf.keras.layers.RandomBrightness(0.1),
+            tf.keras.layers.RandomContrast(0.1)
         ])
 
     else:
         print("\nINFO: Data augmentation - disabled\n")
-
-    if LOG:
-        print("\nINFO: Log-transforming labels vector\n")
 
     print("\n--------------------------------------\n")
 
@@ -299,27 +412,35 @@ if __name__ == "__main__":
     # use CPU for all pre-processing
     with tf.device('/cpu:0'):
         # load paths
-        X_paths, y_paths = importLabeledImages(DATA_PATH)
-        NUM_CLASSES = 1
+        X_paths, y_paths, y_gt, NUM_CLASSES = importLabeledImages(DATA_PATH,
+                                                                  make_five_class=args["five_class"])
 
         # 1 shuffle
-        X_paths, y_paths = shuffle(X_paths, y_paths, random_state=SEED)
+        X_paths, y_paths, y_gt = shuffle(X_paths, y_paths, y_gt, random_state=SEED)
 
         # 1.5 balance classes
+
+        if args["balance_classes"] == True:
+            X_paths, y_paths, y_gt = balance_classes(X_paths, y_paths, y_gt)
 
         train_ds = tf.data.Dataset.from_tensor_slices((X_paths, y_paths))
         # normally shuffle should be equal to len(filenames), but as we shuffle in the preprocessing step
         # BATCH_SIZE * 100 is acceptable here
         train_ds = train_ds.shuffle(BATCH_SIZE * 100)
         train_ds = train_ds.map(parse_function, num_parallel_calls=NUM_PARALLEL_CALLS)
+        train_ds = train_ds.map(lambda x, y: (x, tf.one_hot(y, depth=NUM_CLASSES)),
+                                num_parallel_calls=NUM_PARALLEL_CALLS)
 
-        # apply log transform, if enabled
-        if args["log_transform"]:
-            train_ds = train_ds.map(lambda x, y: (x, log_and_norm(y)),
+        # using one-hot encoding with class-aware gaussian label smoothing if SIGMA is > 0
+        if SIGMA > 0:
+            train_ds = train_ds.map(lambda x, y: (x, make_gauss_pdf(y,
+                                                                    sigma=SIGMA,
+                                                                    sum_to_one=True,
+                                                                    num_classes=NUM_CLASSES)),
                                     num_parallel_calls=NUM_PARALLEL_CALLS)
 
         # apply data augmentation, if enabled
-        if args["augmentation"]:
+        if args["augmentation"] == True:
             train_ds = train_ds.map(lambda x, y: (trainAug(x), y),
                                     num_parallel_calls=NUM_PARALLEL_CALLS)
 
@@ -341,7 +462,7 @@ if __name__ == "__main__":
 
     model.compile(loss=LOSS,
                   optimizer=OPTIMIZER,
-                  metrics=[MAPE])  # [LOSS, "mean_squared_error", "mean_absolute_error"])
+                  metrics=["accuracy", MAPE])  # [LOSS, "mean_squared_error", "mean_absolute_error"])
     model.summary()
 
     # Include the epoch in the file name (uses `str.format`)
@@ -386,33 +507,47 @@ if __name__ == "__main__":
     print("\nINFO: Evaluating trained model...\n")
     # load paths
     if TEST_DATA:
-        X_test, y_test = importLabeledImages(TEST_DATA)
+        X_test, y_test, y_gt_test, NUM_CLASSES = importLabeledImages(TEST_DATA,
+                                                                     make_five_class=args["five_class"])
         print("\nINFO: Reporting Final stats on supplied TEST dataset:", TEST_DATA)
         test_ds = tf.data.Dataset.from_tensor_slices((X_test, y_test))
     else:
         print("\nWARNING: NO TEST DATA SUPPLIED! REPORTING FINAL STATS ON TRAINING DATASET!")
-        X_paths, y_paths = importLabeledImages(DATA_PATH)
+        X_paths, y_paths, y_gt, NUM_CLASSES = importLabeledImages(DATA_PATH)
         test_ds = tf.data.Dataset.from_tensor_slices((X_paths, y_paths))
-        X_test, y_test = X_paths, y_paths
+        X_test, y_test, y_gt_test = X_paths, y_paths, y_gt
 
     test_ds = test_ds.map(parse_function, num_parallel_calls=NUM_PARALLEL_CALLS)
-    # apply log transform, if enabled
-    if args["log_transform"]:
-        test_ds = test_ds.map(lambda x, y: (x, log_and_norm(y)),
-                              num_parallel_calls=NUM_PARALLEL_CALLS)
+    test_ds = test_ds.map(lambda x, y: (x, tf.one_hot(y, depth=NUM_CLASSES)),
+                          num_parallel_calls=NUM_PARALLEL_CALLS)
     # create batch and pre-fetch so one batch is always available
     test_ds = test_ds.batch(BATCH_SIZE)
     test_ds = test_ds.prefetch(1)
 
     score = model.evaluate(test_ds, verbose=VERBOSE)
     y_pred = model.predict(test_ds, verbose=VERBOSE)
-    if LOG:
-        y_pred = delog_and_denorm(y_pred)
-        y_pred_out = y_pred.numpy().reshape(tf.shape(y_pred)[0])
-    else:
-        y_pred_out = y_pred.reshape(len(y_pred))
+    print("\nINFO: Computing MAPE true...\n")
+    MAPE_score_true, MAPE_score_ideal = MAPE_true(y_gt_test, y_pred)
 
-    print("INFO: Final TRUE MAPE:   %.2f" % score[1])
+    # get predicted class from one_hot encoded prediction vector
+    y_pred_class = np.argmax(y_pred, axis=1)
+
+    if args["five_class"]:
+        class_list = [0.0013, 0.0030, 0.0068, 0.0154, 0.0351]
+    else:
+        class_list = [0.0010, 0.0012, 0.0015, 0.0019, 0.0023,
+                      0.0028, 0.0034, 0.0042, 0.0052, 0.0064,
+                      0.0078, 0.0096, 0.0118, 0.0145, 0.0179,
+                      0.0219, 0.0270, 0.0331, 0.0407, 0.0500]
+
+    y_pred_class_val = np.take(class_list, np.argmax(y_pred, axis=1))
+
+    class_list_str = ["class_activation_" + str(i) for i in class_list]
+
+    print("\nINFO: Final classification accuracy: %.4f" % score[1])
+    print("INFO: Dataset IDEAL MAPE: %.2f" % MAPE_score_ideal)
+    print("INFO: Final CLASS MAPE:   %.2f" % score[2])
+    print("INFO: Final TRUE  MAPE:   %.2f" % MAPE_score_true)
 
     print("\n------------------------------------------------------------------------")
 
@@ -421,23 +556,20 @@ if __name__ == "__main__":
     # save out all final results in separate file, just to be save.
     with open(args["output_dir"] + '/scores.txt', 'w') as f:
         with redirect_stdout(f):
-            print("INFO: Training Settings\n",
-                  "\nEPOCHS: ", EPOCHS,
-                  "\nSAVE_WEIGHTS_EVERY: ", SAVE_WEIGHTS_EVERY,
-                  "\nBATCH_SIZE: ", BATCH_SIZE,
-                  "\nVERBOSE: ", VERBOSE,
-                  "\nOPTIMIZER: ", OPTIMIZER,
-                  "\nLOSS: ", LOSS,
-                  "\nLOG_DATA", LOG,
-                  "\nDATA_PATH: ", DATA_PATH,
-                  "\nTEST_DATA: ", TEST_DATA,
-                  "\nSEED: ", SEED)
-
-            print("\nINFO: Final TRUE MAPE:   %.2f" % score[1])
+            print("INFO: Final classification accuracy: %.4f" % score[1])
+            print("INFO: Dataset IDEAL MAPE: %.2f" % MAPE_score_ideal)
+            print("INFO: Final CLASS MAPE:   %.2f" % score[2])
+            print("INFO: Final TRUE  MAPE:   %.2f" % MAPE_score_true)
 
     out_df = pd.DataFrame({"file": X_test,
-                           "gt": y_test,
-                           "pred": y_pred_out})
+                           "gt_class": y_test,
+                           "pred_class": y_pred_class,
+                           "gt": y_gt_test,
+                           "pred": y_pred_class_val})
+
+    # add activations to output file to show confidence distribution
+    for cl, class_entry in enumerate(class_list_str):
+        out_df[class_entry] = y_pred[:, cl]
 
     out_df.to_csv(args["output_dir"] + '/test_data_pred_results.csv')
 
