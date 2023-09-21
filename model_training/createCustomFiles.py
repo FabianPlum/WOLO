@@ -1,7 +1,5 @@
-import math
 import numpy as np
 import os
-import csv
 from imutils import paths
 from sklearn.utils import shuffle
 import argparse
@@ -148,13 +146,6 @@ if __name__ == "__main__":
     else:
         SEPARATOR = "\\"
 
-    classes = [0.0010, 0.0012, 0.0015, 0.0019, 0.0023, 0.0028,
-               0.0034, 0.0042, 0.0052, 0.0064, 0.0078, 0.0096,
-               0.0118, 0.0145, 0.0179, 0.0219, 0.0270, 0.0331,
-               0.0407, 0.0500]
-
-    classes_str = [str(i) for i in classes]
-
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
     # Data input and output
@@ -164,8 +155,23 @@ if __name__ == "__main__":
     ap.add_argument("-o", "--output_dir", required=True, type=str)
     ap.add_argument("-s", "--shuffle", default=False, required=False, type=bool)
     ap.add_argument("-b", "--backup_location", default="backup", required=False, type=str)
+    ap.add_argument("-c", "--class_compress", default=False, required=False, type=bool)
 
     args = vars(ap.parse_args())
+
+    if args["class_compress"]:
+        classes = [0.0013,
+                   0.0030,
+                   0.0068,
+                   0.0154,
+                   0.0351]
+    else:
+        classes = [0.0010, 0.0012, 0.0015, 0.0019, 0.0023, 0.0028,
+                   0.0034, 0.0042, 0.0052, 0.0064, 0.0078, 0.0096,
+                   0.0118, 0.0145, 0.0179, 0.0219, 0.0270, 0.0331,
+                   0.0407, 0.0500]
+
+    classes_str = [str(i) for i in classes]
 
     # reference execution from YOLO_export
     createCustomFiles(obIDs=classes_str,
