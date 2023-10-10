@@ -1,0 +1,12 @@
+# python environment specific
+*.pyc
+.idea/*
+
+# jupyter related
+.ipynb_checkpoints/*
+evaluation/.ipynb_checkpoints/*
+evaluation/__pycache__/*
+
+# datasets
+evaluation/example_data
+evaluation/example_data/*
