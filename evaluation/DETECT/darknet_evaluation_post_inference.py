@@ -275,7 +275,7 @@ if __name__ == '__main__':
     modelFolder = "D:\\WOLO\\HPC_trained_models\\WOLO_DETECT\\OUTPUT"
     outputFolder = "D:\\WOLO\\HPC_trained_models\\WOLO_DETECT\\RESULTS"
     dataset = "I:\\WOLO\\BENCHMARK\\MultiCamAnts_YOLO\\data\\obj_test"
-    DEBUG = True
+    DEBUG = False
     REGENERATE_ANNOTATIONS = False
 
     if REGENERATE_ANNOTATIONS:
@@ -343,7 +343,7 @@ if __name__ == '__main__':
     if DEBUG:
         for model_name in model_paths:
             process_detections(model_name)
-            exit()
+
     else:
         with Pool(num_threads) as p:
             p.map(process_detections, model_paths)
