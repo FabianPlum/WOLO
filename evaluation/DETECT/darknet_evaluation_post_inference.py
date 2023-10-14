@@ -34,11 +34,11 @@ def compare_frame(frame_gt, frame_detections, max_dist=0.05, network_shape=[None
     # no worries, this can be easily done. The GT has all the uncompressed info!
     # pull the distinction between 5 and 20 class simply from the model name.
     base_class_five = ["0.0013", "0.0030", "0.0068", "0.0154", "0.0351"]
-    lookup_class_five = lookup_table = [0, 0, 0, 0,
-                                        1, 1, 1, 1,
-                                        2, 2, 2, 2,
-                                        3, 3, 3, 3,
-                                        4, 4, 4, 4]
+    lookup_class_five = [0, 0, 0, 0,
+                         1, 1, 1, 1,
+                         2, 2, 2, 2,
+                         3, 3, 3, 3,
+                         4, 4, 4, 4]
 
     gt_vals = {"plain": ["0.0010", "0.0012", "0.0016", "0.0020", "0.0025",
                          "0.0028", "0.0037", "0.0045", "0.0052", "0.0066",
@@ -104,6 +104,10 @@ def compare_frame(frame_gt, frame_detections, max_dist=0.05, network_shape=[None
         base_class_temp = base_class[gt_class]
         gt = gt_vals[name_to_set[file_base_name]][gt_class]
 
+        if classes == 5:
+            # overwrite gt classes for 5 class case
+            gt_class = lookup_class_five[int(frame_gt[i][0])]
+
         file_name_sample = "test/" + base_class_temp.replace(".", "") + "/" + file_base_name + "_" + \
                            frame_num + "_" + gt.replace(".", "") + ".jpg"
 
@@ -138,7 +142,10 @@ def compare_frame(frame_gt, frame_detections, max_dist=0.05, network_shape=[None
                         # pad values to fit naming convention
                         pred_temp += "0"
 
-                    pred[0] = base_class.index(pred_temp)
+                    if classes == 5:
+                        pred[0] = base_class_five.index(pred_temp)
+                    else:
+                        pred[0] = base_class.index(pred_temp)
                     pred[1] = pred_temp
 
         if min_dist < max_dist:
@@ -168,6 +175,9 @@ def getThreads():
 def process_detections(data):
     REGENERATE_AP_SCORES = False
     print("Running evaluation of ", data, "...")
+    num_classes = int(data.split("_")[-1])
+    print("INFO: num_classes:", num_classes)
+
     if not REGENERATE_AP_SCORES:
         print("WARNING: GENERATING AP SCORES IS DISABLED!")
         thresh_list = [0.5]  # (used in WOLO for classification comparison)
@@ -228,7 +238,8 @@ def process_detections(data):
                         detection,
                         max_detection_distance_px,
                         [800, 800],
-                        confidence)
+                        confidence,
+                        classes=num_classes)
 
                     total_gt_detections += gt_detections
                     total_missed_detections += missed_detections
@@ -293,7 +304,7 @@ if __name__ == '__main__':
     outputFolder = "D:\\WOLO\\HPC_trained_models\\WOLO_DETECT\\RESULTS"
     dataset = "I:\\WOLO\\BENCHMARK\\MultiCamAnts_YOLO\\data\\obj_test"
     DEBUG = False
-    REGENERATE_ANNOTATIONS = False
+    REGENERATE_ANNOTATIONS = True
 
     if REGENERATE_ANNOTATIONS:
         # structure of ground truth data
