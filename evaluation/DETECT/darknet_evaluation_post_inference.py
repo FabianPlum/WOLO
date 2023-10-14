@@ -18,7 +18,7 @@ def compare_points(gt, detection, max_dist=25):
     return match, px_distance
 
 
-def compare_frame(frame_gt, frame_detections, max_dist=0.05, network_shape=[None, None], confidence=0):
+def compare_frame(frame_gt, frame_detections, max_dist=0.05, network_shape=[None, None], confidence=0, classes=20):
     """
     # NOTE: in this case we ignore the classification accuracy when assessing the mAP score!
     # therefore we strip class info from the detections and ground truth to assess the detector as a localizer
@@ -29,6 +29,16 @@ def compare_frame(frame_gt, frame_detections, max_dist=0.05, network_shape=[None
     base_class = ["0.0010", "0.0012", "0.0015", "0.0019", "0.0023", "0.0028", "0.0034",
                   "0.0042", "0.0052", "0.0064", "0.0078", "0.0096", "0.0118", "0.0145",
                   "0.0179", "0.0219", "0.0270", "0.0331", "0.0407", "0.0500"]
+
+    # TODO -> add correct support for 5-class evaluation!
+    # no worries, this can be easily done. The GT has all the uncompressed info!
+    # pull the distinction between 5 and 20 class simply from the model name.
+    base_class_five = ["0.0013", "0.0030", "0.0068", "0.0154", "0.0351"]
+    lookup_class_five = lookup_table = [0, 0, 0, 0,
+                                        1, 1, 1, 1,
+                                        2, 2, 2, 2,
+                                        3, 3, 3, 3,
+                                        4, 4, 4, 4]
 
     gt_vals = {"plain": ["0.0010", "0.0012", "0.0016", "0.0020", "0.0025",
                          "0.0028", "0.0037", "0.0045", "0.0052", "0.0066",
@@ -156,7 +166,16 @@ def getThreads():
 
 
 def process_detections(data):
+    REGENERATE_AP_SCORES = False
     print("Running evaluation of ", data, "...")
+    if not REGENERATE_AP_SCORES:
+        print("WARNING: GENERATING AP SCORES IS DISABLED!")
+        thresh_list = [0.5]  # (used in WOLO for classification comparison)
+    else:
+        # (used in replicAnt paper)
+        # thresh_list = [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8]
+        # (used in WOLO for AP only)
+        thresh_list = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
 
     snapshots = [join(data, f) for f in listdir(data)]
     all_detections = []
@@ -171,9 +190,7 @@ def process_detections(data):
     print("ran inference on {} frames, using {}".format(len(all_detections[-1][1]), data))
 
     max_detection_distance_px = 0.05  # 0.1 = 10% away from centre to be considered a valid detection
-    # thresh_list = [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8] (used in replicAnt paper)
-    # thresh_list = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95] (used in WOLO for AP only)
-    thresh_list = [0.5]  # (used in WOLO for classification comparison)
+
     print("Computing AP scores for thresholds of {}".format(thresh_list))
 
     Results_mat = []
