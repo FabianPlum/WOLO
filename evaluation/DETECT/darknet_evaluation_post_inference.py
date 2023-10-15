@@ -173,7 +173,7 @@ def getThreads():
 
 
 def process_detections(data):
-    REGENERATE_AP_SCORES = False
+    REGENERATE_AP_SCORES = True
     print("Running evaluation of ", data, "...")
     num_classes = int(data.split("_")[-1])
     print("INFO: num_classes:", num_classes)
@@ -183,9 +183,7 @@ def process_detections(data):
         thresh_list = [0.5]  # (used in WOLO for classification comparison)
     else:
         # (used in replicAnt paper)
-        # thresh_list = [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8]
-        # (used in WOLO for AP only)
-        thresh_list = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+        thresh_list = [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8]
 
     snapshots = [join(data, f) for f in listdir(data)]
     all_detections = []
@@ -246,7 +244,9 @@ def process_detections(data):
                     total_false_positives += false_positives
                     all_frame_detection_deviations.append(mean_detection_distance)
 
-                    class_outputs += co
+                    if confidence == 0.5:
+                        # only report class predictions at 50% confidence for comparison
+                        class_outputs += co
 
                     num_frames_processed += 1
 
