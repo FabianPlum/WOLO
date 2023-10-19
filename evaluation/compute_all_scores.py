@@ -226,10 +226,10 @@ if __name__ == '__main__':
         else:
             APE_temp = np.abs((gt - p)/gt)
             
-        ind_list[vid].append(APE_temp)
+        ind_list[vid].append([gt, APE_temp])
         """    
         
-        ind_list[vid].append(p)
+        ind_list[vid].append([gt,p])
         
         
         
@@ -293,7 +293,7 @@ if __name__ == '__main__':
     coeff_var_ind = []
 
     for key, value in ind_list.items() :
-        coeff_var_ind.append(np.std(value)/np.mean(value))
+        coeff_var_ind.append(np.std([i[1] for i in value])/np.mean([i[1] for i in value]))
      
     msg = "Average coefficient of variation across repeated predictions: " + str(round(np.mean(coeff_var_ind),4))
     print(msg)
@@ -348,3 +348,42 @@ if __name__ == '__main__':
     plt.savefig(os.path.join(OUTPUT_LOCATION,output_name + "---class-wise_accuracy.svg"), dpi='figure', pad_inches=0.1)
     plt.show()
      
+
+    # Plot ground truth vs predicted weights (log-log-scaled)
+    gt_v_pred_xy = []
+     
+     
+    for key, value in ind_list.items():
+        gt_v_pred_xy.append([value[0][0], np.mean([i[1] for i in value])])
+
+    plt.rcParams['figure.figsize'] = [6, 6]
+    plt.rcParams['figure.dpi'] = 100
+    fig, ax = plt.subplots()
+    ax.scatter([i[0] for i in gt_v_pred_xy], 
+               [i[1] for i in gt_v_pred_xy], 
+               marker=None, cmap=None, 
+               vmin=0.0005, vmax=0.05, 
+               alpha=0.1)
+
+    """
+    ax.set_xticks(CLASS_LIST)
+    ax.set_xticklabels(CLASS_LIST, rotation=45)
+
+    ax.set_yticks(CLASS_LIST)
+    ax.set_yticklabels(CLASS_LIST)
+    """
+
+    ax.set_ylabel('predicted weight [mg]')
+    ax.set_xlabel('ground truth weight [mg]')
+    ax.set_title('gt vs predicted weight')
+    ax.yaxis.grid(True)
+    ax.set_yscale('log')
+    ax.set_xscale('log')
+    ax.set_ylim(0.001,0.05)    
+    ax.set_xlim(0.001,0.05)  
+
+    # Save the figure and show
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUTPUT_LOCATION,output_name + "---gt_vs_predicted_weight.svg"), 
+                dpi='figure', pad_inches=0.1)
+    plt.show()
