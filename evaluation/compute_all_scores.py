@@ -373,8 +373,8 @@ if __name__ == '__main__':
     ax.set_yticklabels(CLASS_LIST)
     """
 
-    ax.set_ylabel('predicted weight [mg]')
-    ax.set_xlabel('ground truth weight [mg]')
+    ax.set_ylabel('predicted weight [g]')
+    ax.set_xlabel('ground truth weight [g]')
     ax.set_title('gt vs predicted weight')
     ax.yaxis.grid(True)
     ax.set_yscale('log')
