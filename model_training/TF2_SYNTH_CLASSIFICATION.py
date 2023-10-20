@@ -40,7 +40,10 @@ def importLabeledImages(target_directory):
             try:
                 y_val = float(filename.split(" ")[-1][:-4])
             except ValueError:
-                y_val = float(filename.split("_")[-1][:-4])
+                try:
+                    y_val = float(filename.split("_")[-1][:-4])
+                except ValueError:
+                    y_val = float(filename.split("_")[-1][:-4].split("-")[-1])
 
             if y_val > 1:
                 y_val /= 10000  # so all values are treated as grams
@@ -321,7 +324,7 @@ if __name__ == "__main__":
     ap.add_argument("-e", "--epochs", default=10, required=False, type=int)
     ap.add_argument("-bs", "--batch_size", default=128, required=False, type=int)
     ap.add_argument("-sw", "--save_weights_every", default=10, required=False, type=int)
-    ap.add_argument("-aug", "--augmentation", default=True, required=False, type=bool)
+    ap.add_argument("-aug", "--augmentation", default=False, required=False, type=bool)
     ap.add_argument("-t", "--test", default=False, required=False, type=str)
 
     args = vars(ap.parse_args())

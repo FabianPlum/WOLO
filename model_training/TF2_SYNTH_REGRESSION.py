@@ -36,7 +36,10 @@ def importLabeledImages(target_directory):
             try:
                 y_val = float(filename.split(" ")[-1][:-4])
             except ValueError:
-                y_val = float(filename.split("_")[-1][:-4])
+                try:
+                    y_val = float(filename.split("_")[-1][:-4])
+                except ValueError:
+                    y_val = float(filename.split("_")[-1][:-4].split("-")[-1])
 
             if y_val > 1:
                 y_val /= 10000  # so all values are treated as grams
@@ -116,7 +119,7 @@ def build_with_Xception(input_shape, output_nodes=1, refine=False):
     # Importantly, when the base model is set trainable, it is still running in
     # inference mode since we passed training=False (see below xa = ...) when calling it.
     # This means that the batch normalization layers inside won't update their batch statistics.
-    # If they did, they would wreck havoc on the representations learned by the model so far.
+    # If they did, they would wreak havoc on the representations learned by the model so far.
     base_model.trainable = refine
 
     inputs = keras.Input(shape=input_shape)
@@ -234,7 +237,7 @@ if __name__ == "__main__":
     ap.add_argument("-e", "--epochs", default=10, required=False, type=int)
     ap.add_argument("-bs", "--batch_size", default=128, required=False, type=int)
     ap.add_argument("-sw", "--save_weights_every", default=10, required=False, type=int)
-    ap.add_argument("-aug", "--augmentation", default=True, required=False, type=bool)
+    ap.add_argument("-aug", "--augmentation", default=False, required=False, type=bool)
     ap.add_argument("-log", "--log_transform", default=False, required=False, type=bool)
     ap.add_argument("-t", "--test", default=False, required=False, type=str)
 

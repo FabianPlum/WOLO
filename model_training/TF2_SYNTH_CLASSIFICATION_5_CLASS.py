@@ -49,7 +49,10 @@ def importLabeledImages(target_directory, make_five_class=True):
             try:
                 y_val = float(filename.split(" ")[-1][:-4])
             except ValueError:
-                y_val = float(filename.split("_")[-1][:-4])
+                try:
+                    y_val = float(filename.split("_")[-1][:-4])
+                except ValueError:
+                    y_val = float(filename.split("_")[-1][:-4].split("-")[-1])
 
             if y_val > 1:
                 y_val /= 10000  # so all values are treated as grams
@@ -82,7 +85,7 @@ def MAPE(y_true, y_pred, classes=[0.0010, 0.0012, 0.0015, 0.0019, 0.0023, 0.0028
     :return: MAPE
     """
 
-    if args["five_class"]:
+    if FIVE_CLASS:
         classes = y_five_class_list
 
     try:
@@ -126,7 +129,7 @@ def MAPE_true(y_gt, y_pred, classes=[0.0010, 0.0012, 0.0015, 0.0019, 0.0023, 0.0
     :return: MAPE_true, MAPE_ideal
     """
 
-    if args["five_class"]:
+    if FIVE_CLASS:
         classes = y_five_class_list
         classes_upper_limit=y_five_class_list_upper_limit
 
@@ -343,7 +346,7 @@ if __name__ == "__main__":
     ap.add_argument("-e", "--epochs", default=10, required=False, type=int)
     ap.add_argument("-bs", "--batch_size", default=128, required=False, type=int)
     ap.add_argument("-sw", "--save_weights_every", default=10, required=False, type=int)
-    ap.add_argument("-aug", "--augmentation", default=True, required=False, type=bool)
+    ap.add_argument("-aug", "--augmentation", default=False, required=False, type=bool)
     ap.add_argument("-t", "--test", default=False, required=False, type=str)
     ap.add_argument("-fc", "--five_class", default=False, required=False, type=bool)
 
@@ -365,6 +368,8 @@ if __name__ == "__main__":
     DATA_PATH = args["dataset"]
     TEST_DATA = args["test"]
     SEED = int(args["rand_seed"])
+    AUGMENTATION = args["augmentation"]
+    FIVE_CLASS = args["five_class"]
 
     print("\n--------------------------------------",
           "\nINFO: Training Settings\n",
@@ -377,9 +382,10 @@ if __name__ == "__main__":
           "\nLOSS: ", LOSS,
           "\nDATA_PATH: ", DATA_PATH,
           "\nTEST_DATA: ", TEST_DATA,
+          "\nAUGMENTATION: ", AUGMENTATION,
           "\nSEED: ", SEED)
 
-    if args["balance_classes"] == True:
+    if args["balance_classes"]:
         print("\nINFO: Using balanced classes (all classes contain number of samples of smallest class)")
     else:
         print("\nINFO: Classes are not re-balanced")
@@ -389,7 +395,7 @@ if __name__ == "__main__":
     else:
         print("INFO: Using default one-hot encoding")
 
-    if args["augmentation"] == True:
+    if args["augmentation"]:
         print("\nINFO: Data augmentation - enabled\n")
 
         trainAug = tf.keras.Sequential([
