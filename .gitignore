@@ -7,6 +7,7 @@ evaluation/DETECT/.idea/*
 .ipynb_checkpoints/*
 evaluation/.ipynb_checkpoints/*
 evaluation/__pycache__/*
+evaluation/.idea/*
 
 # datasets
 evaluation/example_data
