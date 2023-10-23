@@ -76,6 +76,7 @@ if __name__ == '__main__':
     ap.add_argument("-da", "--darknetFolder", required=True, type=str)
     ap.add_argument("-sd", "--showDetections", default=False, required=False, type=bool)
     ap.add_argument("-i", "--includeSample", default=False, required=False, type=bool)
+    ap.add_argument("-cr", "--CROPPED", default=False, required=False, type=bool)
 
     args = vars(ap.parse_args())
 
@@ -88,12 +89,22 @@ if __name__ == '__main__':
     darknetFolder = args["darknetFolder"]
     showDetections = args["showDetections"]
     includeSample = args["includeSample"]
+    CROPPED = args["CROPPED"]
 
     sys.path.append(darknetFolder)
     import darknet
 
-    sample_paths = [join(sample_folder, f) for f in listdir(sample_folder)
-                    if str(join(sample_folder, f)).split(".")[-1] == "jpg"]
+    if args["CROPPED"]:
+        # get test sample files
+        sample_paths = []
+        for path, subdirs, files in os.walk(sample_folder):
+            for name in files:
+                sample_paths.append(os.path.join(path, name))
+
+    else:
+        # get test sample files
+        sample_paths = [join(sample_folder, f) for f in listdir(sample_folder)
+                        if str(join(sample_folder, f)).split(".")[-1] == "jpg"]
 
     netMain = None
     metaMain = None
@@ -163,7 +174,11 @@ if __name__ == '__main__':
 
         # thresh : detection threshold -> lower = more sensitive
         # nms : non-maximum suppression -> higher = allow for closer proximity between detections
-        detections = darknet.detect_image(netMain, metaMain, darknet_image, thresh=0.25, nms=0.45)
+        if CROPPED:
+            # enforce predictions on all samples but only retrieve the highest confidence one
+            detections = darknet.detect_image(netMain, metaMain, darknet_image, thresh=0.1, nms=0.01)
+        else:
+            detections = darknet.detect_image(netMain, metaMain, darknet_image, thresh=0.5, nms=0.45)
         viable_detections = []
 
         for detection in detections:
