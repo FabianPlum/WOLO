@@ -48,6 +48,7 @@ if __name__ == '__main__':
     ap.add_argument("-o", "--output", required=False, default="", type=str)
     ap.add_argument("-v", "--verbose", required=False, default=False, type=bool)
     ap.add_argument("-m", "--known_ID", required=False, default=False, type=bool)
+    ap.add_argument("-gt", "--gt_from_name", required=False, default=False, type=bool)
 
     args = vars(ap.parse_args())
 
@@ -70,7 +71,7 @@ if __name__ == '__main__':
     data = list(csv.reader(file, delimiter=","))
     file.close()
 
-    if input_file.split("/")[-1].split("_")[0] == "DETECT":
+    if input_file.split("/")[-2].split("_")[0] == "DETECT":
         DETECTION = True
     else:
         DETECTION = False
@@ -109,7 +110,10 @@ if __name__ == '__main__':
     else:
         true_classes = [int(x) for x in [row[2] for row in data[1:]]]
         pred_classes = [int(x) for x in [row[3] for row in data[1:]]]
-        true_weight = [float(x) for x in [row[4] for row in data[1:]]]
+        if args["gt_from_name"]:
+            true_weight = [float(x.split("-")[-1][:-4]) / 10000 for x in [row[1] for row in data[1:]]]
+        else:
+            true_weight = [float(x) for x in [row[4] for row in data[1:]]]
         pred_weight = [float(x) for x in [row[5] for row in data[1:]]]
 
     if DETECTION:
@@ -318,7 +322,6 @@ if __name__ == '__main__':
     print(msg)
     output_txt.write("\n- - - - - - - - - - - - - - - - - - - - - - - - - - - -\n")
     output_txt.write("\n" + msg + "\n")
-    output_txt.close()
 
     """
     class wise score visualisation
@@ -382,13 +385,22 @@ if __name__ == '__main__':
         alpha = 0.1
     else:
         alpha = 0.4
-    ax.scatter([i[0] for i in gt_v_pred_xy],
-               [i[1] for i in gt_v_pred_xy],
+
+    x = np.array([i[0] for i in gt_v_pred_xy])
+    y = np.array([i[1] for i in gt_v_pred_xy])
+
+    #order_points = x.argsort()
+
+    #x_ordered = x.copy()[order_points]
+    #y_ordered = y.copy()[order_points]
+
+    ax.scatter(x,
+               y,
                marker=None, cmap=None,
                vmin=0.0005, vmax=0.05,
                alpha=alpha)
 
-    ax.plot([0.0005, 0.05], [0.0005, 0.05], linewidth=1.0)
+    ax.plot([0.0005, 0.05], [0.0005, 0.05], '-k', linewidth=1.0)
 
     """
     ax.set_xticks(CLASS_LIST)
@@ -398,12 +410,43 @@ if __name__ == '__main__':
     ax.set_yticklabels(CLASS_LIST)
     """
 
+    # parity plot statistics
+    # Calculate Statistics of the Parity Plot
+    mean_abs_err = np.mean(np.abs(x - y))
+    rmse = np.sqrt(np.mean((x - y) ** 2))
+    rmse_std = rmse / np.std(y)
+    z = np.polyfit(x, y, 1)
+    y_hat = np.poly1d(z)(x)
+
+    msg = "Fitting line to gt v pred..."
+    print(msg)
+    output_txt.write(msg + "\n")
+    msg = "slope       : " + str(round(z[0], 4))
+    print(msg)
+    output_txt.write(msg + "\n")
+    msg = "y intercept : " + str(round(z[1], 4))
+    print(msg)
+    output_txt.write(msg + "\n")
+    msg = "R^2         : " + str(round(metrics.r2_score(x, y), 4))
+    print(msg)
+    output_txt.write(msg + "\n")
+
+    ax.plot(x, y_hat)
+
+    text = f"$\: \: Mean \: Absolute \: Error \: (MAE) " \
+           f"= {mean_abs_err:0.3f}$ \n $ Root \: Mean \: Square \: Error \: (RMSE) " \
+           f"= {rmse:0.3f}$ \n $ RMSE \: / \: Std(y) = {rmse_std :0.3f}$ \n " \
+           f"$R^2 = {metrics.r2_score(x, y):0.3f}$"
+
+    plt.gca().text(0.05, 0.95, text, transform=plt.gca().transAxes,
+                   fontsize=14, verticalalignment='top')
+
     ax.set_ylabel('predicted weight [g]')
     ax.set_xlabel('ground truth weight [g]')
     ax.set_title('gt vs predicted weight')
     ax.yaxis.grid(True)
-    ax.set_yscale('log')
-    ax.set_xscale('log')
+    #ax.set_yscale('log')
+    #ax.set_xscale('log')
     ax.set_ylim(0.001, 0.05)
     ax.set_xlim(0.001, 0.05)
 
@@ -414,3 +457,6 @@ if __name__ == '__main__':
 
     if args["verbose"]:
         plt.show()
+
+    output_txt.write("\n- - - - - - - - - - - - - - - - - - - - - - - - - - - -\n")
+    output_txt.close()
