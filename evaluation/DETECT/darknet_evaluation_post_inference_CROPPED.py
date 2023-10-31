@@ -46,15 +46,15 @@ def compare_frame(frame_detections, max_dist=0.05, network_shape=[None, None], c
     except ValueError:
         gt = float(file_base_name.split("-")[-1])
 
-    #print(file_base_name)
-    #print(gt)
-    #print(class_name)
+    # print(file_base_name)
+    # print(gt)
+    # print(class_name)
 
     if gt > 1:
         gt = int(gt / 10000)
 
     gt_class = base_class.index("0.0" + class_name[2:])
-    #print(gt_class)
+    # print(gt_class)
 
     if classes == 5:
         # overwrite gt classes for 5 class case
@@ -67,7 +67,7 @@ def compare_frame(frame_detections, max_dist=0.05, network_shape=[None, None], c
     # strip away all sub threshold detections!
     frame_detections = [f for f in frame_detections[1] if f[1] > confidence]
 
-    #print(frame_detections)
+    # print(frame_detections)
 
     matches_gt = [1]
     matches_det = np.ones(len(frame_detections))
@@ -127,7 +127,7 @@ def compare_frame(frame_detections, max_dist=0.05, network_shape=[None, None], c
 
         class_output = ["/".join(full_sample_name), gt_class, pred[0], gt, pred[1]]
 
-        #print(class_output)
+        # print(class_output)
 
     missed_detections = int(np.sum(matches_gt))
     false_positives = int(np.sum(matches_det)) - below_thresh
@@ -149,7 +149,7 @@ def getThreads():
 
 
 def process_detections(data):
-    dataset_name = "CORVIN9000_128" #"DSLR_C920_CLASS_128"  # "CORVIN9000"
+    dataset_name = "DSLR_C920_CLASS_128"  # "CORVIN9000_128"
 
     print("Running evaluation of ", data, "...")
     num_classes = int(data.split("_")[-1])
@@ -203,7 +203,7 @@ def process_detections(data):
                 gt_detections, missed_detections, false_positives, mean_detection_distance, co = compare_frame(
                     detection,
                     max_detection_distance_px,
-                    [64, 64],
+                    [128, 128],  # [64,64] # [800,800]
                     confidence,
                     classes=num_classes)
 
@@ -248,7 +248,7 @@ def process_detections(data):
                                         AP,
                                         Recall])
 
-    outputFolder = "D:\\WOLO\\HPC_trained_models\\WOLO_DETECT\\RESULTS_TEST_128x128_CORVIN9000"
+    outputFolder = "D:\\WOLO\\HPC_trained_models\\WOLO_DETECT\\RESULTS_TEST_128x128_DSLR_C920"
     output_results = join(outputFolder, str(os.path.basename(data)) + "_RESULTS.pkl")
     print(output_results)
 
@@ -269,7 +269,7 @@ def process_detections(data):
 
 if __name__ == '__main__':
     modelFolder = "D:\\WOLO\\HPC_trained_models\\WOLO_DETECT\\OUTPUT"
-    outputFolder = "D:\\WOLO\\HPC_trained_models\\WOLO_DETECT\\RESULTS_TEST_128x128_CORVIN9000"
+    outputFolder = "D:\\WOLO\\HPC_trained_models\\WOLO_DETECT\\RESULTS_TEST_128x128_DSLR_C920"
     DEBUG = False
 
     start_time = time.time()
