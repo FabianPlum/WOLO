@@ -67,7 +67,7 @@ When using **WOLO** datasets and models or our other projects in your work, plea
         year = {2021}
         }
     
-    @misc{Plum2022,
+    @misc{Plum2023b,
         title = {OmniTrax},
         author = {Plum, Fabian},
         resource = {GitHub repository},
@@ -75,15 +75,15 @@ When using **WOLO** datasets and models or our other projects in your work, plea
         year = {2022}
         }
 
-    @misc{Plumetal2023,
-        author = {Fabian Plum and Rene Bulla and Hendrik Beck and Natalie Imirzian and David Labonte},
-        title = {replicAnt - generating annotated images of animals in complex environments with Unreal Engine},
-        elocation-id = {2023.04.20.537685},
-        year = {2023},
-        doi = {10.1101/2023.04.20.537685},
-        publisher = {Cold Spring Harbor Laboratory},
-        URL = {https://www.biorxiv.org/content/early/2023/04/20/2023.04.20.537685},
-        journal = {bioRxiv}
+    @article{Plum2023a,
+        title = {replicAnt: a pipeline for generating annotated images of animals in complex environments using Unreal Engine},
+        author = {Plum, Fabian and Bulla, René and Beck, Hendrik K and Imirzian, Natalie and Labonte, David},
+        doi = {10.1038/s41467-023-42898-9},
+        issn = {2041-1723},
+        journal = {Nature Communications},
+        url = {https://doi.org/10.1038/s41467-023-42898-9},
+        volume = {14},
+        year = {2023}
         }
 
 ## Contributing
