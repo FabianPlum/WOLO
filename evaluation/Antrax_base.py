@@ -4,12 +4,13 @@ import csv
 import os
 import math
 import time
+import pandas as pd
 import random
 import matplotlib.pyplot as plt
 from sklearn.utils import shuffle
 
 
-def import_tracks(path, numFrames, export=False, 
+def import_tracks(path, numFrames, export=False,
                   min_track_length=0, strip_tail_frames=0, min_movement_px=0):
     """
     Import all tracked paths (using blender motionExport.py) from specified folder and join them to a single array.
@@ -23,8 +24,12 @@ def import_tracks(path, numFrames, export=False,
              The first column consists of the frame numbers for easier readability if exported as a single file.
     """
     print("importing tracks...")
+    lst = os.listdir(path)
+    number_files = len(lst)
+    print("INFO: found a total of", number_files, "tracks...")
+
     files = []
-    tracks = np.empty([numFrames + 1, 1])  # create array for all tracks
+    tracks = np.zeros([numFrames + 1, 1 + number_files * 2])  # create array for all tracks
     tracks[:, 0] = np.arange(start=1, stop=numFrames + 2, step=1, dtype=int)  # insert frame numbers
 
     imported = 0
@@ -32,47 +37,31 @@ def import_tracks(path, numFrames, export=False,
     # r=root, d=directories, f = files
     for r, d, f in os.walk(path):
         for file in f:
-            print(file)
-            if '.csv' in file:
-                files.append(os.path.join(r, file))
+            df = pd.read_csv(os.path.join(path, file), delimiter=';')
 
-                with open(os.path.join(path,file)) as csv_file:
-                    csv_reader = csv.reader(csv_file, delimiter=';')
+            track_temp = df[["frame", "x", "y"]].to_numpy()
 
-                    next(csv_reader, None)  # skip the headers
-                        
-                    track_temp = []
+            if strip_tail_frames > 0:
+                track_temp = track_temp[:-strip_tail_frames]
 
-                    for row in csv_reader:
-                        if row != [""]:
-                            track_temp.append(row)
-                        
-                    if strip_tail_frames > 0:
-                        track_temp = track_temp[:-strip_tail_frames]
-                        
-                    line_count = len(track_temp)
-                    print(line_count)
-                            
-                    if line_count >= min_track_length:
-                        
-                        # next, check if the track has moved sufficiently to be considered
-                        movement_temp_arr = np.array([i[1:3] for i in track_temp if i[1] != ''])
-                        movement_range = np.ptp(movement_temp_arr.astype(np.int), axis=0)
-                        
-                        if np.sqrt(np.sum(np.square(movement_range))) >= min_movement_px:
-                        
-                            tracks = np.append(tracks, np.zeros([numFrames + 1, 2]), axis=1)
+            line_count = len(track_temp)
 
-                            for row in track_temp:
-                                tracks[int(row[0]) - 1, imported * 2 + 1] = int(row[1])
-                                tracks[int(row[0]) - 1, imported * 2 + 2] = int(row[2])
+            if line_count >= min_track_length:
 
-                            print("INFO: imported", str(file), f' with {line_count} points.')
-                            imported += 1
-                        else:
-                            print("INFO: excluded", str(file), f"for insufficient movement points.")
-                    else:
-                        print("INFO: excluded", str(file), f' with {line_count} points.')
+                # next, check if the track has moved sufficiently to be considered
+                movement_temp_arr = np.array([i[1:3] for i in track_temp if i[1] != ''])
+                movement_range = np.ptp(movement_temp_arr.astype(int), axis=0)
+
+                if np.sqrt(np.sum(np.square(movement_range))) >= min_movement_px:
+
+                    tracks[track_temp[:, 0] - 1, imported * 2 + 1: imported * 2 + 3] = track_temp[:, 1:]
+
+                    print("INFO: imported", str(file), f' with {line_count} points.')
+                    imported += 1
+                else:
+                    print("INFO: excluded", str(file), f"for insufficient movement points.")
+            else:
+                print("INFO: excluded", str(file), f' with {line_count} points.')
 
     tracks = tracks.astype(int)
     if export:
