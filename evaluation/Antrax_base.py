@@ -69,7 +69,8 @@ def import_tracks(path, numFrames, export=False,
         np.savetxt(export_path, tracks, delimiter=",")
 
     print("\nSuccessfully combined the tracks of", imported, "individuals for training and display!")
-    return tracks
+    # trim array to only contain valid tracks
+    return tracks[:, : 1 + imported * 2]
 
 
 def display_video(cap, tracks, show=(0, math.inf), scale=1.0):
