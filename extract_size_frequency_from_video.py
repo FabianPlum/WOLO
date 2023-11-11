@@ -9,8 +9,7 @@ import tensorflow as tf
 from tqdm import tqdm
 
 # now for the file management functions
-from evaluation.Antrax_base import import_tracks, display_video, get_exact_frame, \
-    extractPatches, display_patches, sortByDistance
+from evaluation.Antrax_base import import_tracks, display_video
 
 
 def get_patch_stack(frame, tracks, frame_num=0, patch_size=128, show_patches=False, VERBOSE=False):
@@ -19,11 +18,17 @@ def get_patch_stack(frame, tracks, frame_num=0, patch_size=128, show_patches=Fal
     patch_ids = []
 
     # then retrieve all track centres at the given frame
-    track_centres = np.array(tracks)[frame_num, 1:]
+    track_centres = tracks[frame_num, 1:]
+    track_centres_non_zero_ids = np.nonzero(track_centres)[0][::2]
 
-    for track in range(int(track_centres.shape[0] / 2)):
-        # ensure the track is present at the given frame
-        if track_centres[track * 2] != 0 and track_centres[track * 2 + 1] != 0:
+    if VERBOSE:
+        print("Valid tracks at", frame_num)
+        print(track_centres_non_zero_ids)
+
+    if len(track_centres_non_zero_ids) != 0:
+
+        for track_orig in track_centres_non_zero_ids:
+            track = int((track_orig + 1) / 2)
             # invert y-axis, to fit openCV convention ( lower left -> (x=0,y=0) )
             target_centre = [track_centres[track * 2], frame.shape[0] - track_centres[track * 2 + 1]]
             # define the starting and ending point of the bounding box rectangle, defined by "target_size"
@@ -45,8 +50,8 @@ def get_patch_stack(frame, tracks, frame_num=0, patch_size=128, show_patches=Fal
             else:
                 out_image = patch
             if show_patches:
-                cv2.imshow("patch", out_image)
-                cv2.waitKey(1)
+                cv2.imshow(str(track), out_image)
+                cv2.waitKey(0)
 
             patches.append(out_image)
             patch_ids.append(track)
@@ -92,11 +97,16 @@ if __name__ == "__main__":
     ap.add_argument("-s", "--strip_tail_frames", default=50, required=False, type=int)
     ap.add_argument("-p", "--min_movement_px", default=50, required=False, type=int)
     ap.add_argument("-r", "--retrieve_every", default=5, required=False, type=int)
+    ap.add_argument("-GPU", "--GPU", default="0", required=False, type=str)
 
     # optional
     ap.add_argument("-d", "--display_video", default=False, required=False, type=bool)
 
     args = vars(ap.parse_args())
+
+    # set which GPU to use
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = args["GPU"]
 
     """
     export_paths = ["C:/Users/Legos/OneDrive/EAEAAO/2019-07-23_bramble_leaves_right"]
@@ -126,7 +136,7 @@ if __name__ == "__main__":
     for folder in export_paths:
         # You can export all tracks into a single .csv file by setting "export=True"
         tracks.append(import_tracks(folder, numFramesMax,
-                                    export=True,
+                                    export=False,
                                     min_track_length=min_track_length,
                                     strip_tail_frames=strip_tail_frames,
                                     min_movement_px=min_movement_px))
@@ -164,7 +174,7 @@ if __name__ == "__main__":
             from model_training.TF2_SYNTH_CLASSIFICATION_5_CLASS import *
             import model_training.TF2_SYNTH_CLASSIFICATION_5_CLASS
 
-            model_training.TF2_SYNTH_CLASSIFICATION_5.VERBOSE = VERBOSE
+            model_training.TF2_SYNTH_CLASSIFICATION_5_CLASS.VERBOSE = VERBOSE
     else:
         INFERENCE_METHOD = "REG"
         from model_training.TF2_SYNTH_REGRESSION import *
@@ -214,15 +224,23 @@ if __name__ == "__main__":
     # create array holding all possible weight measurements
     all_weights = np.full([math.floor(num_frames / retrieve_every), num_tracks], np.nan)
 
+    tracks_np = np.array(tracks[0])
+
     # Iterate over all frames, retrieve stacks of valid patches, run inference, and add their values to all_weights
     # It is likely MUCH faster to simply iterate over all frames in the video and every n-th frame extract and predict
     for frame_num in tqdm(range(0, tracked_frames - 2 * strip_tail_frames)):
+    #for frame_num in range(0, tracked_frames - 2 * strip_tail_frames):
         ret, frame = cap.read()
         if not ret:
             break
             print("WARNING: Video has ended!")
         if ret and frame_num % retrieve_every == 0:
-            patch_stack, patch_ids = get_patch_stack(frame, tracks[0], frame_num=frame_num, patch_size=128)
+            patch_stack, patch_ids = get_patch_stack(frame, tracks_np, frame_num=frame_num, patch_size=128,
+                                                     show_patches=False, VERBOSE=False)
+
+            # skip empty frames
+            if len(patch_ids) == 0:
+                continue
 
             # now pass patch_stack to model.predict(patch_stack) and return predicted labels to assign to all_weights
             predictions = model.predict(patch_stack, verbose=0)
@@ -269,6 +287,8 @@ if __name__ == "__main__":
     all_weights_compressed_median = np.round(np.nanmedian(all_weights, axis=0), 4)
     all_weights_compressed_mode = np.round(stats.mode(all_weights, axis=0, nan_policy='omit', keepdims=True)[0][0], 4)
 
+    extracted_weights = all_weights_compressed_mean.shape
+    print("\nFinal weight estimates for", extracted_weights, "individuals:")
     print(all_weights_compressed_mean)
     print("\n")
     print(all_weights_compressed_median)
