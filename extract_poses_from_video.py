@@ -99,8 +99,8 @@ if __name__ == "__main__":
     ap.add_argument("-l", "--min_track_length", default=100, required=False, type=int)
     ap.add_argument("-s", "--strip_tail_frames", default=50, required=False, type=int)
     ap.add_argument("-p", "--min_movement_px", default=50, required=False, type=int)
-    ap.add_argument("-r", "--retrieve_every", default=5, required=False, type=int)
-    ap.add_argument("-GPU", "--GPU", default="0", required=False, type=str)
+    ap.add_argument("-r", "--retrieve_every", default=1, required=False, type=int)
+    ap.add_argument("-GPU", "--GPU", default=None, required=False, type=str)
 
     # optional
     ap.add_argument("-d", "--display_video", default=False, required=False, type=bool)
@@ -108,8 +108,9 @@ if __name__ == "__main__":
     args = vars(ap.parse_args())
 
     # set which GPU to use
-    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = args["GPU"]
+    if args["GPU"] is not None:
+        os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+        os.environ["CUDA_VISIBLE_DEVICES"] = args["GPU"]
 
     export_paths = [args["tracks"]]
     video = args["video"]
