@@ -25,7 +25,9 @@ video_list = ["2019-07-22/2019-07-22_bramble_left.mp4",
 video_absolute_path = "I:/EAEAAO/FOOTAGE"
 tracks_absolute_path = "J:/OUTPUT_TRACKS"
 
-model_path = "D:/WOLO/HPC_trained_models/WOLO/TRAINED_MODELS/CLASS_MultiCamAnts-and-synth-standard_20_one-hot_cross-entropy"
+# CLASS_MultiCamAnts-and-synth-simple_5_sigma-2_cross-entropy
+# CLASS_MultiCamAnts-and-synth-standard_20_one-hot_cross-entropy
+model_path = "D:/WOLO/HPC_trained_models/WOLO/TRAINED_MODELS/CLASS_MultiCamAnts-and-synth-simple_5_sigma-2_cross-entropy"
 
 for video in video_list:
     video_path = os.path.join(video_absolute_path, video)
