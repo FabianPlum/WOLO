@@ -46,7 +46,11 @@ def get_patch_stack(frame, tracks, frame_num=0, patch_size=128, show_patches=Fal
                               math.floor((patch_size - patch.shape[0]) / 2) + patch.shape[0]]
                 px_patch_x = [math.floor((patch_size - patch.shape[1]) / 2),
                               math.floor((patch_size - patch.shape[1]) / 2) + patch.shape[1]]
-                out_image[px_patch_y[0]:px_patch_y[1], px_patch_x[0]:px_patch_x[1]] = patch
+                try:
+                    out_image[px_patch_y[0]:px_patch_y[1], px_patch_x[0]:px_patch_x[1]] = patch
+                except ValueError:
+                    print("WARNING: Incorrectly sized patch found! Skipping:", track_orig, "at frame", frame_num)
+                    continue
             else:
                 out_image = patch
             if show_patches:
@@ -74,7 +78,7 @@ def find_class(array, value):
     return pred_class
 
 
-def clean_array(array, strip_NaN=True, strip_zero=True):
+def clean_array(array, strip_NaN=True, strip_zero=False):
     array_np = np.asarray(array)
     if strip_NaN:
         array_np = array_np[np.logical_not(np.isnan(array_np))]
@@ -229,7 +233,6 @@ if __name__ == "__main__":
     # Iterate over all frames, retrieve stacks of valid patches, run inference, and add their values to all_weights
     # It is likely MUCH faster to simply iterate over all frames in the video and every n-th frame extract and predict
     for frame_num in tqdm(range(0, tracked_frames - 2 * strip_tail_frames)):
-    #for frame_num in range(0, tracked_frames - 2 * strip_tail_frames):
         ret, frame = cap.read()
         if not ret:
             break
@@ -276,8 +279,10 @@ if __name__ == "__main__":
                 all_weights[math.floor(frame_num / retrieve_every), patch_id] = pred
 
     # export all_tracks and all_weights
+    """
     with open(str(os.path.basename(video))[:-4] + "_ALL_CLEANED_TRACKS.pickle", 'wb') as handle:
         pickle.dump(tracks, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    """
 
     # export all_tracks and all_weights
     with open(str(os.path.basename(video))[:-4] + "_ALL_WEIGHTS.pickle", 'wb') as handle:
@@ -302,22 +307,27 @@ if __name__ == "__main__":
                     0.0118, 0.0145, 0.0179, 0.0219, 0.0270, 0.0331,
                     0.0407, 0.0500]
 
+    five_class = [0.0013, 0.0030, 0.0068, 0.0154, 0.0351]
+    five_class_limits = [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5]
+
     """
     
     we extract the following plots with mean, median, and mode of the predicted weights per track
     
     """
     # produced using MEAN
-    pred_classes = [find_class(twenty_class, float(x)) for x in all_weights_compressed_mean]
-    pred_classes = clean_array(pred_classes, strip_NaN=True, strip_zero=True)
+    pred_classes = [find_class(five_class, float(x)) for x in all_weights_compressed_mean]
+    print(pred_classes)
+    # pred_classes = clean_array(pred_classes, strip_NaN=True, strip_zero=True)
+    pred_classes = clean_array(pred_classes, strip_NaN=True)
 
     plt.rcParams.update({'figure.figsize': (7, 5), 'figure.dpi': 100})
 
     # Plot Histogram on x
     fig, ax = plt.subplots()
-    ax.hist(pred_classes, bins=range(20), density=True)
-    ax.set_xticks(np.arange(len(twenty_class)))
-    ax.set_xticklabels(twenty_class, rotation=45)
+    ax.hist(pred_classes, bins=five_class_limits, density=True)
+    ax.set_xticks(np.arange(len(five_class)))
+    ax.set_xticklabels(five_class, rotation=45)
     ax.set_ylim(0, 1)
     plt.gca().set(title='size-frequency distribution', ylabel='relative frequency')
 
@@ -328,16 +338,16 @@ if __name__ == "__main__":
         "Size-frequency distribution (mean) plot produced for " + str(os.path.basename(video))[:-4] + "_mean.svg")
 
     # produced using MEDIAN
-    pred_classes = [find_class(twenty_class, float(x)) for x in all_weights_compressed_median]
-    pred_classes = clean_array(pred_classes, strip_NaN=True, strip_zero=True)
+    pred_classes = [find_class(five_class, float(x)) for x in all_weights_compressed_median]
+    pred_classes = clean_array(pred_classes, strip_NaN=True)
 
     plt.rcParams.update({'figure.figsize': (7, 5), 'figure.dpi': 100})
 
     # Plot Histogram on x
     fig, ax = plt.subplots()
-    ax.hist(pred_classes, bins=range(20), density=True)
-    ax.set_xticks(np.arange(len(twenty_class)))
-    ax.set_xticklabels(twenty_class, rotation=45)
+    ax.hist(pred_classes, bins=five_class_limits, density=True)
+    ax.set_xticks(np.arange(len(five_class)))
+    ax.set_xticklabels(five_class, rotation=45)
     ax.set_ylim(0, 1)
     plt.gca().set(title='size-frequency distribution', ylabel='relative frequency')
 
@@ -348,16 +358,16 @@ if __name__ == "__main__":
         "Size-frequency distribution (median) plot produced for " + str(os.path.basename(video))[:-4] + "_median.svg")
 
     # produced using MODE
-    pred_classes = [find_class(twenty_class, float(x)) for x in all_weights_compressed_mode]
-    pred_classes = clean_array(pred_classes, strip_NaN=True, strip_zero=True)
+    pred_classes = [find_class(five_class, float(x)) for x in all_weights_compressed_mode]
+    pred_classes = clean_array(pred_classes, strip_NaN=True)
 
     plt.rcParams.update({'figure.figsize': (7, 5), 'figure.dpi': 100})
 
     # Plot Histogram on x
     fig, ax = plt.subplots()
-    ax.hist(pred_classes, bins=range(20), density=True)
-    ax.set_xticks(np.arange(len(twenty_class)))
-    ax.set_xticklabels(twenty_class, rotation=45)
+    ax.hist(pred_classes, bins=five_class_limits, density=True)
+    ax.set_xticks(np.arange(len(five_class)))
+    ax.set_xticklabels(five_class, rotation=45)
     ax.set_ylim(0, 1)
     plt.gca().set(title='size-frequency distribution', ylabel='relative frequency')
 
