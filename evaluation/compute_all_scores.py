@@ -308,8 +308,8 @@ if __name__ == '__main__':
         class_wise_elements_p.append(p)
 
     # clean class_wise_scores, in case not all classes are represented
+    #TODO -> check why class 0 is not represented (even when present) in output plots
     class_wise_scores = [[i, 0, 0, 0, 0, 0, 0, 0] if elem == [] else elem for i, elem in enumerate(class_wise_scores)]
-
     class_wise_scores = np.array(class_wise_scores)
 
     coeff_var_ind = []
