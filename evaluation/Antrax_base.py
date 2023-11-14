@@ -11,7 +11,8 @@ from sklearn.utils import shuffle
 
 
 def import_tracks(path, numFrames, export=False,
-                  min_track_length=0, strip_tail_frames=0, min_movement_px=0):
+                  min_track_length=0, strip_tail_frames=0, min_movement_px=0,
+                  VERBOSE=True):
     """
     Import all tracked paths (using blender motionExport.py) from specified folder and join them to a single array.
     Optionally, allows for export of created array containing all tracks into single .csv file
@@ -23,10 +24,12 @@ def import_tracks(path, numFrames, export=False,
     :return: array of all imported tracks, row: frames, columns X / Y coordinates of individual track.
              The first column consists of the frame numbers for easier readability if exported as a single file.
     """
-    print("importing tracks...")
+    if VERBOSE:
+        print("importing tracks...")
     lst = os.listdir(path)
     number_files = len(lst)
-    print("INFO: found a total of", number_files, "tracks...")
+    if VERBOSE:
+        print("INFO: found a total of", number_files, "tracks...")
 
     files = []
     tracks = np.zeros([numFrames + 1, 1 + number_files * 2])  # create array for all tracks
@@ -56,19 +59,23 @@ def import_tracks(path, numFrames, export=False,
 
                     tracks[track_temp[:, 0] - 1, imported * 2 + 1: imported * 2 + 3] = track_temp[:, 1:]
 
-                    print("INFO: imported", str(file), f' with {line_count} points.')
+                    if VERBOSE:
+                        print("INFO: imported", str(file), f' with {line_count} points.')
                     imported += 1
                 else:
-                    print("INFO: excluded", str(file), f"for insufficient movement points.")
+                    if VERBOSE:
+                        print("INFO: excluded", str(file), f"for insufficient movement points.")
             else:
-                print("INFO: excluded", str(file), f' with {line_count} points.')
+                if VERBOSE:
+                    print("INFO: excluded", str(file), f' with {line_count} points.')
 
     tracks = tracks.astype(int)
     if export:
         export_path = path + "_all_tracks.csv"
         np.savetxt(export_path, tracks, delimiter=",")
 
-    print("\nSuccessfully combined the tracks of", imported, "individuals for training and display!")
+    if VERBOSE:
+        print("\nSuccessfully combined the tracks of", imported, "individuals for training and display!")
     # trim array to only contain valid tracks
     return tracks[:, : 1 + imported * 2]
 
