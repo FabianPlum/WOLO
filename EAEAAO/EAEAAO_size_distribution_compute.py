@@ -67,8 +67,6 @@ all_rose = ["2019-07-23_rose_left_2_ALL_WEIGHTS.pickle",
 five_class = [0.0013, 0.0030, 0.0068, 0.0154, 0.0351]
 five_class_limits = [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5]
 
-# TODO load all pickle files
-
 all_pred_classes = []
 
 for input_file in all_bramble:
