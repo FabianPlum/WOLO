@@ -175,7 +175,7 @@ for input_file in video_list:
     pred_classes = [find_class(five_class, float(x)) for x in all_weights_compressed_median]
     pred_classes = clean_array(pred_classes, strip_NaN=True)
 
-    print(input_file, "contains", pred_classes.shape[0], "estimated weights.")
+    print("\n", input_file, "contains", pred_classes.shape[0], "estimated weights.")
 
     out_array = np.zeros((pred_classes.shape[0], 2))
     out_array[:, 0] = pred_classes
@@ -202,23 +202,23 @@ for input_file in video_list:
 
     print(input_file, "contains", int((tracks.shape[1] - 1) / 2), "valid tracks")
 
-    tracks_MA = apply_moving_average(tracks, 48)
+    tracks_MA = apply_moving_average(tracks, 5)
 
-    tracks_speed = get_derivative(tracks_MA, time_step=1 / 24)
+    tracks_speed = get_derivative(tracks_MA, time_step=1 / 25)
 
-    max_speed = np.max(tracks_speed, axis=0)
+    mean_speed = np.mean(tracks_speed[np.nonzero(tracks_speed)], axis=0)
 
-    out_array[:, 1] = max_speed
+    out_array[:, 1] = mean_speed
 
     weight_class_v_speed.extend(out_array.tolist())
 
     # export all_tracks and all_weights
-    with open(str(os.path.basename(input_file))[:-4] + "_WEIGHTS_AND_SPEED_IN_PX_per_S.pickle", 'wb') as handle:
+    with open(str(os.path.basename(input_file))[:-4] + "_WEIGHTS_AND_MEAN_SPEED_IN_PX_per_S.pickle", 'wb') as handle:
         pickle.dump(out_array, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 weight_class_v_speed_np = np.array(weight_class_v_speed)
 
 print("\nTotal estimates n = ", weight_class_v_speed_np.shape[0])
 
-with open("ALL_WEIGHTS_AND_SPEED_IN_PX_per_S.pickle", 'wb') as handle:
+with open("ALL_WEIGHTS_AND_SPEED_MEAN_IN_PX_per_S.pickle", 'wb') as handle:
     pickle.dump(weight_class_v_speed_np, handle, protocol=pickle.HIGHEST_PROTOCOL)
