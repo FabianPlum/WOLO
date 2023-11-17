@@ -87,13 +87,13 @@ for r, d, f in os.walk(input_poses):
         median_length = np.round(np.median(lengths) / px_to_mm, 2)
 
         # now, use the appropriate class ID
-        all_sizes.append(find_class([3.2, 3.8, 4.3, 5, 5.7], median_length))
+        all_sizes.append(find_class([3, 4, 5, 6, 7], median_length))
         all_poses.append(df.to_numpy())
         all_pose_ids.append(int(file.split("_")[-1][:-4]))
 
 all_poses_sorted = [pose for _, pose in sorted(zip(all_pose_ids, all_poses))]
 all_sizes_sorted = [size for _, size in sorted(zip(all_pose_ids, all_sizes))]
 
-compose_video_with_overlay(cap, tracks, poses=all_poses_sorted, scale=1.0, show=(8500, 100000),
+compose_video_with_overlay(cap, tracks, poses=all_poses_sorted, scale=1.0, show=(85000, 100000),
                            size_classes=all_sizes_sorted, constant_frame_rate=False, pose_point_size=2,
-                           video_name=input_video.split("/")[-1], DEBUG=True)
+                           video_name=input_video.split("/")[-1], DEBUG=True, thresh=0.5)
