@@ -308,7 +308,7 @@ if __name__ == '__main__':
         class_wise_elements_p.append(p)
 
     # clean class_wise_scores, in case not all classes are represented
-    #TODO -> check why class 0 is not represented (even when present) in output plots
+    # TODO -> check why class 0 is not represented (even when present) in output plots
     class_wise_scores = [[i, 0, 0, 0, 0, 0, 0, 0] if elem == [] else elem for i, elem in enumerate(class_wise_scores)]
     class_wise_scores = np.array(class_wise_scores)
 
@@ -376,7 +376,10 @@ if __name__ == '__main__':
     gt_v_pred_xy = []
 
     for key, value in ind_list.items():
-        gt_v_pred_xy.append([value[0][0], np.mean([i[1] for i in value])])
+        # originally the MEAN was used to get the "average" prediction
+        # gt_v_pred_xy.append([value[0][0], np.mean([i[1] for i in value])])
+
+        gt_v_pred_xy.append([value[0][0], np.median([i[1] for i in value])])
 
     plt.rcParams['figure.figsize'] = [6, 6]
     plt.rcParams['figure.dpi'] = 100
@@ -389,10 +392,10 @@ if __name__ == '__main__':
     x = np.array([i[0] for i in gt_v_pred_xy])
     y = np.array([i[1] for i in gt_v_pred_xy])
 
-    #order_points = x.argsort()
+    # order_points = x.argsort()
 
-    #x_ordered = x.copy()[order_points]
-    #y_ordered = y.copy()[order_points]
+    # x_ordered = x.copy()[order_points]
+    # y_ordered = y.copy()[order_points]
 
     ax.scatter(x,
                y,
@@ -401,14 +404,6 @@ if __name__ == '__main__':
                alpha=alpha)
 
     ax.plot([0.0005, 0.05], [0.0005, 0.05], '-k', linewidth=1.0)
-
-    """
-    ax.set_xticks(CLASS_LIST)
-    ax.set_xticklabels(CLASS_LIST, rotation=45)
-
-    ax.set_yticks(CLASS_LIST)
-    ax.set_yticklabels(CLASS_LIST)
-    """
 
     # parity plot statistics
     # Calculate Statistics of the Parity Plot
@@ -445,8 +440,8 @@ if __name__ == '__main__':
     ax.set_xlabel('ground truth weight [g]')
     ax.set_title('gt vs predicted weight')
     ax.yaxis.grid(True)
-    #ax.set_yscale('log')
-    #ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xscale('log')
     ax.set_ylim(0.001, 0.05)
     ax.set_xlim(0.001, 0.05)
 
