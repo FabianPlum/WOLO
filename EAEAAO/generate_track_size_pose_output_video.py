@@ -94,6 +94,7 @@ for r, d, f in os.walk(input_poses):
 all_poses_sorted = [pose for _, pose in sorted(zip(all_pose_ids, all_poses))]
 all_sizes_sorted = [size for _, size in sorted(zip(all_pose_ids, all_sizes))]
 
-compose_video_with_overlay(cap, tracks, poses=all_poses_sorted, scale=1.0, show=(85000, 100000),
+compose_video_with_overlay(cap, tracks, poses=all_poses_sorted, scale=1.0, show=(16000, 18000),
                            size_classes=all_sizes_sorted, constant_frame_rate=False, pose_point_size=2,
-                           video_name=input_video.split("/")[-1], DEBUG=True, thresh=0.5)
+                           video_name="LIGHT-MODE_" + input_video.split("/")[-1], DEBUG=True, thresh=0.5,
+                           lightmode=True)

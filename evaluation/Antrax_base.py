@@ -202,10 +202,14 @@ def display_video(cap, tracks, show=(0, math.inf), scale=1.0):
 
 
 class BarGraph:
-    def __init__(self, width=600, height=720, num_classes=5):
+    def __init__(self, width=600, height=720, num_classes=5, lightmode=False):
         self.height = height
         self.width = width
-        self.graph = np.zeros((height, width, 3), np.uint8)
+        self.lightmode = lightmode
+        if self.lightmode:
+            self.graph = np.ones((height, width, 3), np.uint8) * 255
+        else:
+            self.graph = np.zeros((height, width, 3), np.uint8)
         self.num_classes = num_classes
         self.class_count = np.zeros(num_classes)
 
@@ -215,13 +219,29 @@ class BarGraph:
         for u, c in zip(unique, counts):
             self.class_count[u] = c
 
-        new_graph = np.zeros((self.height, self.width, 3), np.uint8)
+        if self.lightmode:
+            new_graph = np.ones((self.height, self.width, 3), np.uint8) * 255
+        else:
+            new_graph = np.zeros((self.height, self.width, 3), np.uint8)
 
-        colours = [[0, 255, 170],
-                   [0, 255, 255],
-                   [0, 170, 255],
-                   [0, 85, 255],
-                   [0, 0, 255]]
+        colours = [[152, 181, 45],
+                   [181, 131, 45],
+                   [181, 52, 45],
+                   [181, 45, 118],
+                   [165, 45, 181]]
+
+        if self.lightmode:
+            fill = [[194, 232, 58],
+                    [232, 168, 58],
+                    [232, 67, 58],
+                    [232, 58, 151],
+                    [212, 58, 232]]
+        else:
+            fill = [[109, 130, 33],
+                    [130, 94, 33],
+                    [130, 37, 33],
+                    [130, 33, 85],
+                    [119, 33, 130]]
 
         num_occurences = len(classes)
         if num_occurences > 0:
@@ -231,7 +251,8 @@ class BarGraph:
                 elem_height = cl / num_occurences
                 start_point = int(c * self.width / self.num_classes), int(self.height)
                 end_point = int((c + 1) * self.width / self.num_classes), int(self.height * (1 - elem_height))
-                new_graph = cv2.rectangle(new_graph, start_point, end_point, colours[c], 5)
+                new_graph = cv2.rectangle(new_graph, start_point, end_point, fill[c], cv2.FILLED)
+                new_graph = cv2.rectangle(new_graph, start_point, end_point, colours[c], 4)
 
         self.graph = new_graph
 
@@ -241,7 +262,8 @@ class BarGraph:
 
 def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=(0, math.inf), scale=1.0,
                                constant_frame_rate=True, thresh=0.5, pose_point_size=3,
-                               video_name="Analysed video", DEBUG=False, WRITE_OUT=True):
+                               video_name="Analysed video", DEBUG=False, WRITE_OUT=True,
+                               lightmode=False):
     """
     Function displays imported footage with tracking results, poses, and class, as overlay
     For now, this happens at a fixed resolution and input videos will be rescaled to 720p
@@ -270,11 +292,11 @@ def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=
 
     # colours = np.random.randint(low=0, high=255, size=((math.floor(((tracks.shape[1]) - 1) / 2)), 3))
     # colours correspond to the class of the animal (lager = "more red")
-    colours = [[0, 255, 170],
-               [0, 255, 255],
-               [0, 170, 255],
-               [0, 85, 255],
-               [0, 0, 255]]
+    colours = [[152, 181, 45],
+               [181, 131, 45],
+               [181, 52, 45],
+               [181, 45, 118],
+               [165, 45, 181]]
 
     # assign IDs to cutout displays
     box_id = [None, None, None, None, None, None, None, None]
@@ -295,7 +317,7 @@ def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=
 
     full_frame_dims = [1420, 2600, 3]
 
-    graph = BarGraph(width=600, height=720, num_classes=5)
+    graph = BarGraph(width=600, height=720, num_classes=5, lightmode=lightmode)
 
     print("\nDisplaying tracked footage!\npress 'q' to end display")
 
@@ -305,6 +327,11 @@ def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=
 
     # set font from info display on frame
     font = cv2.FONT_HERSHEY_DUPLEX
+
+    if lightmode:
+        line_colour = (0, 0, 0)
+    else:
+        line_colour = (255, 255, 255)
 
     while True:  # run until no more frames are available
         time_prev = time.time()
@@ -322,15 +349,19 @@ def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=
 
         all_classes = []
 
-        full_frame = np.zeros(full_frame_dims, dtype=np.uint8)
-        full_frame_clean = np.zeros(full_frame_dims, dtype=np.uint8)
+        if lightmode:
+            full_frame = np.ones(full_frame_dims, dtype=np.uint8) * 255
+            full_frame_clean = np.ones(full_frame_dims, dtype=np.uint8) * 255
+        else:
+            full_frame = np.zeros(full_frame_dims, dtype=np.uint8)
+            full_frame_clean = np.zeros(full_frame_dims, dtype=np.uint8)
 
         full_frame_clean[200:920, 520:1800, :] = frame_clean
 
         for bbox in box_coords:
             start_point = bbox[1], bbox[0]
             end_point = bbox[3], bbox[2]
-            full_frame = cv2.rectangle(full_frame, start_point, end_point, (255, 255, 255), 5)
+            full_frame = cv2.rectangle(full_frame, start_point, end_point, line_colour, 5)
 
         vis_track = 0
 
@@ -356,7 +387,7 @@ def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=
 
                 if vis_track < len(box_id):
                     cutout = full_frame_clean[200 + px_start[1]: 200 + px_end[1],
-                                              520 + px_start[0]: 520 + px_end[0], :]
+                             520 + px_start[0]: 520 + px_end[0], :]
                     try:
                         cutout_resized = cv2.resize(cutout, (300, 300))
                         full_frame[box_coords[vis_track][0]:box_coords[vis_track][2],
@@ -381,7 +412,7 @@ def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=
                         cv2.putText(full_frame, "CLASS: " + str(size_classes[track]),
                                     (box_coords[vis_track][1],
                                      box_coords[vis_track][2] + 40),
-                                    font, 0.83, color_temp, 1,
+                                    font, 0.83, color_temp, 2,
                                     cv2.LINE_AA)
 
 
@@ -426,45 +457,45 @@ def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=
         full_frame[200:920, 520:1800, :] = frame
 
         cv2.putText(full_frame, "file: " + video_name, (100, 80),
-                    font, 1.6, (255, 255, 255), 1, cv2.LINE_AA)
+                    font, 1.6, line_colour, 1, cv2.LINE_AA)
 
         cv2.putText(full_frame, "live size-frequency", (1990, 160),
-                    font, 1.4, (255, 255, 255), 1, cv2.LINE_AA)
+                    font, 1.4, line_colour, 1, cv2.LINE_AA)
 
         cv2.putText(full_frame, "frame: " + str(frame_num), (100, 160),
-                    font, 1.6, (255, 255, 255), 1, cv2.LINE_AA)
+                    font, 1.6, line_colour, 1, cv2.LINE_AA)
 
         # updated and create bar graph of normalised size frequency distribution
         graph.update(all_classes)
         roi = full_frame[200:920, 1920:2520, :]  # final position
         roi[:] = graph.get_graph()
         # draw lines and add ticks
-        full_frame = cv2.line(full_frame, (1900, 920), (2540, 920), color=(255, 255, 255), thickness=5)
-        full_frame = cv2.line(full_frame, (1910, 930), (1910, 190), color=(255, 255, 255), thickness=5)
+        full_frame = cv2.line(full_frame, (1900, 920), (2540, 920), color=line_colour, thickness=5)
+        full_frame = cv2.line(full_frame, (1910, 930), (1910, 190), color=line_colour, thickness=5)
         cv2.putText(full_frame, "body length in mm", (2090, 1000),
-                    font, 0.9, (255, 255, 255), 1, cv2.LINE_AA)
+                    font, 0.9, line_colour, 1, cv2.LINE_AA)
         cv2.putText(full_frame, "0.0", (1850, 920),
-                    font, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                    font, 0.7, line_colour, 1, cv2.LINE_AA)
         full_frame = cv2.line(full_frame,
                               (1900, 200),
                               (1920, 200),
-                              color=(255, 255, 255), thickness=3)
+                              color=line_colour, thickness=3)
         cv2.putText(full_frame, "0.5", (1850, 560),
-                    font, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                    font, 0.7, line_colour, 1, cv2.LINE_AA)
         full_frame = cv2.line(full_frame,
                               (1900, 560),
                               (1920, 560),
-                              color=(255, 255, 255), thickness=3)
+                              color=line_colour, thickness=3)
         cv2.putText(full_frame, "1.0", (1850, 200),
-                    font, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                    font, 0.7, line_colour, 1, cv2.LINE_AA)
         five_class = [" 3.0", " 4.0", " 5.0", " 6.0", " 7.0"]
         for space, cl in enumerate(five_class):
             full_frame = cv2.line(full_frame,
                                   (1975 + space * 125, 905),
                                   (1975 + space * 125, 935),
-                                  color=(255, 255, 255), thickness=3)
+                                  color=line_colour, thickness=3)
             cv2.putText(full_frame, cl, (1945 + space * 125, 963),
-                        font, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                        font, 0.7, line_colour, 1, cv2.LINE_AA)
 
         if WRITE_OUT:
             cv2.imwrite(os.path.join("output_comp_" + video_name, video_name + "_" + str(frame_num) + ".jpg"),
