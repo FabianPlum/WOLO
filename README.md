@@ -18,6 +18,10 @@ ___
 # Project Description
 
 This repo and page are a work in progress and will be continuously updated as Fabi attempts to submit his PhD thesis by the end of the year.
+
+WOLO data can then be integrated with OmniTrax estimates for combined tracking / pose / size estimation:
+
+![](images/DARK-MODE_2019-08-03_bramble-left-demo.gif)
 ___
 
 # Example synthetic images
