@@ -9,7 +9,7 @@ by [Fabian **Plum**](https://twitter.com/fabian_plum) and [David **Labonte**](ht
 
 ___
 
-![](images/colony_volli_full_final.jpg)
+![](images/atta_colony_1-50mg_render_alpha.png)
 
 _rendered image of synthetic leafcutter ant colony, digitised using [scAnt](https://github.com/evo-biomech/scAnt), rigged and rendered in [Blender](https://www.blender.org/), synthetic datasets generated with [replicAnt](https://github.com/evo-biomech/replicAnt) in [Unreal Engine](https://www.unrealengine.com/en-US)_
 
