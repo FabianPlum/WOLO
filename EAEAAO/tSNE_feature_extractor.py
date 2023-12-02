@@ -233,7 +233,7 @@ if __name__ == "__main__":
     # now loop over all pose elements and produce the format stated above
     # ["video", "material", "startframe", "id", "speed", "size_class"]
 
-    material = input_poses.split("_")[-1].split("-")[0]
+    material = input_poses.replace("_", "-").split("-")[3]
     out_list = []
     centre_poses = True  # if true, centres poses at b_t
     align_poses = True  # if true, aligns all poses with b_t -> b_a_1 being the middle

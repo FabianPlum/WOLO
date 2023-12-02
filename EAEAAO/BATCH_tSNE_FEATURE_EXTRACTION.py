@@ -1,7 +1,7 @@
 import os
+from multiprocessing.pool import ThreadPool
 import subprocess
 
-"""
 video_list = ["2019-07-22/2019-07-22_bramble_left.mp4",
               "2019-07-23/2019-07-23_bramble_right2.avi",
               "2019-07-23/2019-07-23_bramble_right.avi",
@@ -21,49 +21,60 @@ video_list = ["2019-07-22/2019-07-22_bramble_left.mp4",
               "2019-08-03/2019-08-03_bramble-right.avi",
               "2019-08-05/2019-08-05_bramble_left.avi",
               "2019-08-05/2019-08-05_rose_right.avi",
-              "2019-08-06/2019-08-06_bramble_left.avi"]
+              "2019-08-06/2019-08-06_bramble_left.avi",
+              "2019-08-06/2019-08-06_rose_right.avi",
+              "2019-08-07/2019-08-07_bramble_left.avi",
+              "2019-08-07/2019-08-07_bramble_right.avi",
+              "2019-08-08/2019-08-08_rose_left.avi",
+              "2019-08-08/2019-08-08_rose_right.avi",
+              "2019-08-09/2019-08-09_bramble_left.avi",
+              "2019-08-09/2019-08-09_rose_right.avi",
+              "2019-08-12/2019-08-12_rose_left.avi",
+              "2019-08-12/2019-08-12_rose_right.avi",
+              "2019-08-13/2019-08-13_bramble_right.avi",
+              "2019-08-13/2019-08-13_rose_left.avi",
+              "2019-08-15/2019-08-15_bramble_left.avi",
+              "2019-08-15/2019-08-15_bramble_right.avi",
+              "2019-08-16/2019-08-16_bramble_right.avi",
+              "2019-08-16/2019-08-16_rose_left.avi",
+              "2019-08-20/2019-08-20_rose_left.avi",
+              "2019-08-20/2019-08-20_rose_right.avi",
+              "2019-08-21/2019-08-21_rose_left.avi",
+              "2019-08-21/2019-08-21_rose_right.avi",
+              "2019-08-22/2019-08-22_bramble_right.avi",
+              "2019-08-22/2019-08-22_rose_left.avi"]
 
-video_absolute_path = "I:/EAEAAO/FOOTAGE"
-tracks_absolute_path = "J:/OUTPUT_TRACKS"
+order_list = ["I:/EAEAAO/jobscripts/EAEAAO_batch_pose.pbs.o8454338." + str(i + 1) for i in range(len(video_list))]
 
-# CLASS_MultiCamAnts-and-synth-simple_5_sigma-2_cross-entropy
-# CLASS_MultiCamAnts-and-synth-standard_20_one-hot_cross-entropy
-model_path = "D:/WOLO/HPC_trained_models/WOLO/TRAINED_MODELS/CLASS_MultiCamAnts-and-synth-simple_5_sigma-2_cross-entropy"
+VIDEO_FOLDER = "I:/EAEAAO/FOOTAGE/"
+TRACK_FOLDER = "I:/EAEAAO/Tracking/OUTPUT_TRACKS/"
+POSE_FOLDER = "I:/EAEAAO/POSES/"
 
-for video in video_list:
-    video_path = os.path.join(video_absolute_path, video)
-    tracks_path = os.path.join(tracks_absolute_path, video.split("/")[-1][:-4])
 
-    if os.path.exists(video_path):
-        print("INFO: ", video_path, "checks out!")
-    else:
-        print("INFO: ", video_path, "DOES NOT CHECK OUT!!!")
+def work(task):
+    input_video = VIDEO_FOLDER + task[0]
+    input_tracks = TRACK_FOLDER + task[0].split("/")[-1][:-4]
+    input_poses = POSE_FOLDER + task[0].split("/")[-1][:-4]
+    order = task[1]
+    feature_extract_subprocess = subprocess.call(["python",
+                                                  "tSNE_feature_extractor.py",
+                                                  "-t", input_tracks,
+                                                  "-v", input_video,
+                                                  "-p", input_poses,
+                                                  "-o", order])
 
-    if os.path.exists(tracks_path):
-        print("INFO: ", tracks_path, "checks out!")
-    else:
-        print("INFO: ", tracks_path, "DOES NOT CHECK OUT!!!")
+    # "-test", str(True)])
 
-    print("INFO: Processing", video)
+    line = True
+    while line:
+        parsedline = feature_extract_subprocess.stdout.readline()
+        print(parsedline)
 
-    subprocess.call(["python",
-                     "extract_size_frequency_from_video.py",
-                     "-v", str(video_path),
-                     "-t", str(tracks_path),
-                     "-m", model_path,
-                     "--GPU", "0"])
-                     #"-d", "False"])
-"""
 
-input_video = "I:/EAEAAO/FOOTAGE/2019-08-03/2019-08-03_bramble-left.avi"
-input_tracks = "I:/EAEAAO/Tracking/OUTPUT_TRACKS/2019-08-03_bramble-left"
-input_poses = "I:/EAEAAO/POSES/2019-08-03_bramble-left"
-input_file_order = "I:/EAEAAO/jobscripts/EAEAAO_batch_pose.pbs.o8454338.16"
+num = 8  # set to the number of workers you want (it defaults to the cpu count of your machine)
+tp = ThreadPool(num)
+for video, order in zip(video_list, order_list):
+    tp.apply_async(work, ([video, order],))
 
-subprocess.call(["python",
-                 "tSNE_feature_extractor.py",
-                 "-t", input_tracks,
-                 "-v", input_video,
-                 "-p", input_poses,
-                 "-o", input_file_order,
-                 "-test", str(True)])
+tp.close()
+tp.join()
