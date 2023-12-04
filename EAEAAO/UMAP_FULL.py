@@ -9,12 +9,14 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     # Data input and output
     ap.add_argument("-i", "--input_folder", required=False, type=str, default="EXTRACTED_POSE_FEATURE_VECTORS")
+    ap.add_argument("-n", "--normalisation", required=False, type=str, default="min_max")
 
     args = vars(ap.parse_args())
 
     input_folder = args["input_folder"]
+    normalisation = args["normalisation"]
 
-    out_folder = "UMAP_2D"
+    out_folder = "UMAP_2D_" + normalisation + "-normalisation"
     os.mkdir(out_folder)
 
     df_ant_poses_list = [os.path.join(input_folder, f) for f in os.listdir(input_folder) if
@@ -32,7 +34,12 @@ if __name__ == "__main__":
     features = df_ant_poses.loc[:, 'raw_pose_0':]  # use all entries and exclude labels
     labels = df_ant_poses.loc[:, :"size_class"]
 
-    norm_features = (features - features.min()) / (features.max() - features.min())
+    if normalisation == "min_max":
+        norm_features = (features - features.min()) / (features.max() - features.min())
+        print("INFO: Normalised all extracted features (using min / max)")
+    else:
+        norm_features = (features - features.mean()) / features.std()
+        print("INFO: Normalised all extracted features (using mean / std)")
 
     print("INFO: Normalised all extracted features (using min/max)")
 
