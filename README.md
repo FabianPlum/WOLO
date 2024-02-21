@@ -5,8 +5,6 @@
 # WOLO
 **Wilson Only Looks Once** - official GitHub repo, containing data parsing and generation files, links to all used datasets and training as well as evaluation routines.
 
-by [Fabian **Plum**](https://twitter.com/fabian_plum) and [David **Labonte**](https://twitter.com/EvoBiomech)
-
 ___
 
 ![](images/atta_colony_1-50mg_render_alpha.png)
