@@ -17,6 +17,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import argparse
 from sklearn import metrics
+import scipy.stats as sp
 
 
 def goAPE(y_true, y_pred, CLASS_LIST=None, gt_v_class=False):
@@ -41,49 +42,62 @@ def goAPE(y_true, y_pred, CLASS_LIST=None, gt_v_class=False):
     return MAPE, STDAPE
 
 
-if __name__ == '__main__':
-    # construct the argument parse and parse the arguments
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-i", "--input", required=True, type=str)
-    ap.add_argument("-o", "--output", required=False, default="", type=str)
-    ap.add_argument("-v", "--verbose", required=False, default=False, type=bool)
-    ap.add_argument("-m", "--known_ID", required=False, default=False, type=bool)
-    ap.add_argument("-gt", "--gt_from_name", required=False, default=False, type=bool)
+def find_class(array, value):
+    array_np = np.asarray(array)
+    idx = (np.abs(array_np - value)).argmin()
+    nearest_class = array_np[idx]
+    pred_class = array.index(nearest_class)
+    return pred_class
 
-    args = vars(ap.parse_args())
 
-    OUTPUT_LOCATION = args["output"]
-    input_folder = args["input"]
+def compute_scores(input_file,
+                   output,
+                   verbose=False,
+                   known_ID=False,
+                   gt_from_name=False,
+                   detection_format=False):
+    """
+    replaces original main method, runs all analysis computing
+    """
+
+    OUTPUT_LOCATION = output
+    input_folder = input_file
 
     # call the following once to produce resized plots across the notebook
     plt.rcParams['figure.figsize'] = [10, 8]
     plt.rcParams['figure.dpi'] = 100
 
-    input_file = input_folder.replace("\\", "/") + "/test_data_pred_results.csv"
-    output_name = input_file.split("/")[-2]
+    if detection_format:
+        DETECTION = True
+        input_file = input_folder.replace("\\", "/")
+        if input_file[-4:] != ".csv":
+            return  # skip pkl files
+        else:
+            file_specifics = input_file.split("/")[-1].split("test_data")[0]
+    else:
+        DETECTION = False
+        input_file = input_folder.replace("\\", "/") + "/test_data_pred_results.csv"
+        file_specifics = ""
+
+    file = open(input_file, "r")
+    try:
+        data = list(csv.reader(file, delimiter=","))
+        file.close()
+    except UnicodeDecodeError:
+        file.close()
+        return
+
+    if len(data) < 20:
+        # ignore short files which do not contain correctly formatted data
+        return
+
+    output_name = file_specifics + input_file.split("/")[-2]
 
     print(output_name)
     output_txt = open(os.path.join(OUTPUT_LOCATION, output_name + "---ALL_OUTPUTS.txt"), "w")
 
     output_txt.write("Running evaluation of inference outputs produced by: " + output_name + " ...\n")
     print("Beginning writing to output file...")
-    file = open(input_file, "r")
-    data = list(csv.reader(file, delimiter=","))
-    file.close()
-
-    if input_file.split("/")[-2].split("_")[0] == "DETECT":
-        DETECTION = True
-    else:
-        DETECTION = False
-
-
-    def find_class(array, value):
-        array_np = np.asarray(array)
-        idx = (np.abs(array_np - value)).argmin()
-        nearest_class = array_np[idx]
-        pred_class = array.index(nearest_class)
-        return pred_class
-
 
     print("Retrieving the following info from the input file:", data[0][1:6])
     file_names = [row[1] for row in data[1:]]
@@ -97,10 +111,13 @@ if __name__ == '__main__':
 
     if len(data[0]) > 11:
         CLASS_LIST = twenty_class
+        REGRESSION = False
     elif len(data[0]) == 11:
         CLASS_LIST = five_class
+        REGRESSION = False
     else:
         CLASS_LIST = twenty_class  # use classification approach of 20 class list for displaying regressor outputs
+        REGRESSION = True
 
     if len(data[0]) < 6 and not DETECTION:  # regressors have fewer lines as the output activations aren't relevant
         true_classes = [scaled_20.index(int(x.replace("\\", "/").split("/")[-2])) for x in [row[1] for row in data[1:]]]
@@ -108,9 +125,13 @@ if __name__ == '__main__':
         true_weight = [float(x) for x in [row[2] for row in data[1:]]]
         pred_weight = [float(x) for x in [row[3] for row in data[1:]]]
     else:
-        true_classes = [int(x) for x in [row[2] for row in data[1:]]]
+        try:
+            true_classes = [int(x) for x in [row[2] for row in data[1:]]]
+        except ValueError:
+            print("\n\n---------------\nIncorrect file type! Skipping file...\n---------------\n\n")
+            return
         pred_classes = [int(x) for x in [row[3] for row in data[1:]]]
-        if args["gt_from_name"]:
+        if gt_from_name:
             true_weight = [float(x.split("-")[-1][:-4]) / 10000 for x in [row[1] for row in data[1:]]]
         else:
             true_weight = [float(x) for x in [row[4] for row in data[1:]]]
@@ -178,12 +199,14 @@ if __name__ == '__main__':
 
     y_actu = pd.Series([CLASS_LIST[x] for x in true_classes], name='True class')
     y_pred = pd.Series([CLASS_LIST[x] for x in pred_classes], name='Predicted class')
+
     df_confusion = pd.crosstab(y_actu, y_pred)
     df_conf_norm = df_confusion.div(df_confusion.sum(axis=1), axis="index")
 
     df_conf_norm.to_csv(os.path.join(OUTPUT_LOCATION, output_name + "---Confusion_matrix.csv"))
 
     confusion_matrix = metrics.confusion_matrix(true_classes, pred_classes, normalize="true")
+
     cm_display = metrics.ConfusionMatrixDisplay(confusion_matrix=confusion_matrix,
                                                 display_labels=CLASS_LIST)
 
@@ -197,8 +220,9 @@ if __name__ == '__main__':
 
     plt.title("Confusion matrix")
     plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---Confusion_matrix.svg"), dpi='figure', pad_inches=0.1)
-    if args["verbose"]:
+    if verbose:
         plt.show()
+    plt.close()
 
     """
     Compute class wise scores
@@ -228,7 +252,7 @@ if __name__ == '__main__':
         vid = "_".join(file_components[2].split("_")[0:-2]) + "_" + file_components[2].split("_")[-1]
         # alternatively, if no consistent identities are given in the video path, assume
         # a change in gt weight corresponds to a new individual
-        if not args["known_ID"]:
+        if not known_ID:
             if str(gt) not in ind_list:
                 ind_list[str(gt)] = []
 
@@ -236,17 +260,7 @@ if __name__ == '__main__':
             if vid not in ind_list:
                 ind_list[vid] = []
 
-        """
-        # use the following instead of line below, when extracting error stability instead of prediction stability
-        if CLASS_LIST is not None:
-            APE_temp = np.abs((CLASS_LIST[gt_cl] - CLASS_LIST[p_cl])/CLASS_LIST[gt_cl])
-        else:
-            APE_temp = np.abs((gt - p)/gt)
-            
-        ind_list[vid].append([gt, APE_temp])
-        """
-
-        if not args["known_ID"]:
+        if not known_ID:
             ind_list[str(gt)].append([gt, p])
         else:
             ind_list[vid].append([gt, p])
@@ -348,8 +362,10 @@ if __name__ == '__main__':
     # Save the figure and show
     plt.tight_layout()
     plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---class-wise_MAPE.svg"), dpi='figure', pad_inches=0.1)
-    if args["verbose"]:
+    if verbose:
         plt.show()
+    plt.close()
+
     plt.rcParams['figure.figsize'] = [6, 4]
     plt.rcParams['figure.dpi'] = 100
     fig, ax = plt.subplots()
@@ -369,8 +385,9 @@ if __name__ == '__main__':
     # Save the figure and show
     plt.tight_layout()
     plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---class-wise_accuracy.svg"), dpi='figure', pad_inches=0.1)
-    if args["verbose"]:
+    if verbose:
         plt.show()
+    plt.close()
 
     # Plot ground truth vs predicted weights (log-log-scaled)
     gt_v_pred_xy = []
@@ -379,12 +396,18 @@ if __name__ == '__main__':
         # originally the MEAN was used to get the "average" prediction
         # gt_v_pred_xy.append([value[0][0], np.mean([i[1] for i in value])])
 
-        gt_v_pred_xy.append([value[0][0], np.median([i[1] for i in value])])
+        # use mode prediction when running classifier or detector, use mean prediction for regressor
+        if REGRESSION:
+            pred_temp = np.mean([i[1] for i in value])
+        else:
+            pred_temp = sp.mode(np.array([i[1] for i in value]))[0]
+
+        gt_v_pred_xy.append([value[0][0], pred_temp])
 
     plt.rcParams['figure.figsize'] = [6, 6]
     plt.rcParams['figure.dpi'] = 100
     fig, ax = plt.subplots()
-    if args["known_ID"]:
+    if known_ID:
         alpha = 0.1
     else:
         alpha = 0.4
@@ -411,15 +434,21 @@ if __name__ == '__main__':
     rmse = np.sqrt(np.mean((x - y) ** 2))
     rmse_std = rmse / np.std(y)
     z = np.polyfit(x, y, 1)
-    y_hat = np.poly1d(z)(x)
+    try:
+        y_hat = np.poly1d(z)(x)
+    except ValueError:
+        z = z.flatten()
+        y_hat = np.poly1d(z)(x)
+
+    print("\n\n-----------------\n\n", z, "\n\n-----------------\n\n")
 
     msg = "Fitting line to gt v pred..."
     print(msg)
     output_txt.write(msg + "\n")
-    msg = "slope       : " + str(round(z[0], 4))
+    msg = "slope       : " + str(np.round(z[0], 4))
     print(msg)
     output_txt.write(msg + "\n")
-    msg = "y intercept : " + str(round(z[1], 4))
+    msg = "y intercept : " + str(np.round(z[1], 4))
     print(msg)
     output_txt.write(msg + "\n")
     msg = "R^2         : " + str(round(metrics.r2_score(x, y), 4))
@@ -449,9 +478,30 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---gt_vs_predicted_weight.svg"),
                 dpi='figure', pad_inches=0.1)
+    plt.close()
 
-    if args["verbose"]:
+    if verbose:
         plt.show()
 
     output_txt.write("\n- - - - - - - - - - - - - - - - - - - - - - - - - - - -\n")
     output_txt.close()
+
+
+if __name__ == '__main__':
+    # construct the argument parse and parse the arguments
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-i", "--input", required=True, type=str)
+    ap.add_argument("-o", "--output", required=False, default="", type=str)
+    ap.add_argument("-v", "--verbose", required=False, default=False, type=bool)
+    ap.add_argument("-m", "--known_ID", required=False, default=False, type=bool)
+    ap.add_argument("-gt", "--gt_from_name", required=False, default=False, type=bool)
+    ap.add_argument("-d", "--detection_format", required=False, default=False, type=bool)
+
+    args = vars(ap.parse_args())
+
+    compute_scores(input_file=args["input"],
+                   output=args["output"],
+                   verbose=args["verbose"],
+                   known_ID=args["known_ID"],
+                   gt_from_name=args["gt_from_name"],
+                   detection_format=args["detection_format"])
