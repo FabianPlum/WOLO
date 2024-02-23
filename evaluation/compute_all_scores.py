@@ -61,6 +61,17 @@ def compute_scores(input_file,
     replaces original main method, runs all analysis computing
     """
 
+    results_dict = {"model": input_file,
+                    "dataset": dataset_name,
+                    "R^2": None,
+                    "slope": None,
+                    "y intercept": None,
+                    "accuracy": None,
+                    "MAPE_true": None,
+                    "MAPE_ideal": None,
+                    "MAPE_class": None,
+                    "COV": None}
+
     OUTPUT_LOCATION = output
     input_folder = input_file
 
@@ -183,6 +194,15 @@ def compute_scores(input_file,
         msg = "Classification accuracy : " + str(round(accuracy, 4))
         output_txt.write(msg + "\n\n")
         print(msg)
+
+    """
+    Update results dict with MAPEs & accuracy
+    """
+
+    results_dict["MAPE_true"] = MAPE_true
+    results_dict["MAPE_ideal"] = MAPE_ideal
+    results_dict["MAPE_class"] = MAPE_class
+    results_dict["accuracy"] = accuracy
 
     """    
     Produce confusion matrices
@@ -335,7 +355,10 @@ def compute_scores(input_file,
     for key, value in ind_list.items():
         coeff_var_ind.append(np.std([i[1] for i in value]) / np.mean([i[1] for i in value]))
 
-    msg = "Average coefficient of variation across repeated predictions: " + str(round(np.mean(coeff_var_ind), 4))
+    cov = round(np.mean(coeff_var_ind), 4)
+    msg = "Average coefficient of variation across repeated predictions: " + str(cov)
+
+    results_dict["COV"] = cov
 
     print(msg)
     output_txt.write("\n- - - - - - - - - - - - - - - - - - - - - - - - - - - -\n")
@@ -449,15 +472,24 @@ def compute_scores(input_file,
     msg = "Fitting line to gt v pred..."
     print(msg)
     output_txt.write(msg + "\n")
-    msg = "slope       : " + str(np.round(z[0], 4))
+
+    slope = np.round(z[0], 4)
+    msg = "slope       : " + str(slope)
     print(msg)
     output_txt.write(msg + "\n")
-    msg = "y intercept : " + str(np.round(z[1], 4))
+    results_dict["slope"] = slope
+
+    y_intercept = np.round(z[1], 4)
+    msg = "y intercept : " + str(y_intercept)
     print(msg)
     output_txt.write(msg + "\n")
-    msg = "R^2         : " + str(round(metrics.r2_score(x, y), 4))
+    results_dict["y intercept"] = y_intercept
+
+    R_squared = round(metrics.r2_score(x, y), 4)
+    msg = "R^2         : " + str(R_squared)
     print(msg)
     output_txt.write(msg + "\n")
+    results_dict["R^2"] = R_squared
 
     ax.plot(x, y_hat)
 
@@ -490,7 +522,7 @@ def compute_scores(input_file,
     output_txt.write("\n- - - - - - - - - - - - - - - - - - - - - - - - - - - -\n")
     output_txt.close()
 
-    return dataset_name
+    return results_dict
 
 
 if __name__ == '__main__':
