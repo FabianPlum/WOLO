@@ -55,13 +55,17 @@ def compute_scores(input_file,
                    verbose=False,
                    known_ID=False,
                    gt_from_name=False,
-                   detection_format=False):
+                   detection_format=False,
+                   dataset_name=None):
     """
     replaces original main method, runs all analysis computing
     """
 
     OUTPUT_LOCATION = output
     input_folder = input_file
+
+    if dataset_name is not None:
+        print("INFO: Producing results for", input_file, "with dataset", dataset_name)
 
     # call the following once to produce resized plots across the notebook
     plt.rcParams['figure.figsize'] = [10, 8]
@@ -485,6 +489,8 @@ def compute_scores(input_file,
 
     output_txt.write("\n- - - - - - - - - - - - - - - - - - - - - - - - - - - -\n")
     output_txt.close()
+
+    return dataset_name
 
 
 if __name__ == '__main__':
