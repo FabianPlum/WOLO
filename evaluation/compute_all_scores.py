@@ -63,6 +63,10 @@ def compute_scores(input_file,
 
     results_dict = {"model": input_file,
                     "dataset": dataset_name,
+                    "inference_type": os.path.basename(input_file).split("_")[0],
+                    "real data": None,
+                    "synth data": None,
+                    "sigma": None,
                     "R^2": None,
                     "slope": None,
                     "y intercept": None,
@@ -71,6 +75,23 @@ def compute_scores(input_file,
                     "MAPE_ideal": None,
                     "MAPE_class": None,
                     "COV": None}
+
+    """
+    get all info about the model type and its training data
+    """
+    # real data
+    if os.path.basename(input_file).split("_")[1].split("-")[0] == "MultiCamAnts":
+        results_dict["real data"] = "MultiCamAnts"
+
+    # synth data
+    if any([True if i == "synth" else False for i in os.path.basename(input_file).split("_")[1].split("-")]):
+        results_dict["synth data"] = os.path.basename(input_file).split("_")[1].split("synth-")[-1]
+
+    # label smoothing
+    if results_dict["inference_type"] == "CLASS":
+        if os.path.basename(input_file).split("_")[3].split("-")[0] == "sigma":
+            results_dict["sigma"] = float(os.path.basename(input_file).split("_")[3].split("-")[-1])
+
 
     OUTPUT_LOCATION = output
     input_folder = input_file
