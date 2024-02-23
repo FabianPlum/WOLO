@@ -70,7 +70,6 @@ if __name__ == '__main__':
                 model_list = os.listdir(model_path)
 
                 for model in model_list:
-
                     all_results[model + "_data_" + eval_type[3]] = executor.submit(worker,
                                                                                    [str(os.path.join(model_path,
                                                                                                      model)),
@@ -79,13 +78,15 @@ if __name__ == '__main__':
                                                                                     results_path,
                                                                                     eval_type[3]])
 
-        valid_results = 0
+        out_results = all_results.copy()
         for i, future in all_results.items():
             if future.result() is not None:
                 print(i, "  :  ", future.result())
-                valid_results += 1
+            else:
+                del out_results[i]
 
-        print("Valid results:", valid_results)
+        print("Out results:", len(out_results))
+
 
     else:
         for e, eval_type in enumerate(all_file_paths):
@@ -95,7 +96,6 @@ if __name__ == '__main__':
             model_list = os.listdir(model_path)
 
             for model in model_list:
-
                 all_results[model + "_data_" + eval_type[3]] = worker([str(os.path.join(model_path, model)),
                                                                        eval_type[1],
                                                                        eval_type[2],
@@ -104,12 +104,13 @@ if __name__ == '__main__':
 
         print("\n\n================================================\n\n")
 
-        valid_results = 0
+        out_results = all_results.copy()
         for i, result in all_results.items():
             if result is not None:
                 print(i, "  :  ", result)
-                valid_results += 1
+            else:
+                del out_results[i]
 
-        print("Valid results:", valid_results)
+        print("Out results:", len(out_results))
 
     print("\n\n================================================\n\n FINISHED")
