@@ -61,20 +61,21 @@ def compute_scores(input_file,
     replaces original main method, runs all analysis computing
     """
 
-    results_dict = {"model": input_file,
-                    "dataset": dataset_name,
-                    "inference_type": os.path.basename(input_file).split("_")[0],
-                    "real data": None,
-                    "synth data": None,
-                    "sigma": None,
-                    "R^2": None,
-                    "slope": None,
-                    "y intercept": None,
-                    "accuracy": None,
-                    "MAPE_true": None,
-                    "MAPE_ideal": None,
-                    "MAPE_class": None,
-                    "COV": None}
+    results_dict = {
+        "model": os.path.basename(input_file).split(".")[0].split("---")[0].split("_test_data_pred_results")[0],
+        "dataset": dataset_name,
+        "inference_type": os.path.basename(input_file).split("_")[0],
+        "real data": None,
+        "synth data": None,
+        "sigma": None,
+        "R^2": None,
+        "slope": None,
+        "y intercept": None,
+        "accuracy": None,
+        "MAPE_true": None,
+        "MAPE_ideal": None,
+        "MAPE_class": None,
+        "COV": None}
 
     """
     get all info about the model type and its training data
@@ -91,7 +92,6 @@ def compute_scores(input_file,
     if results_dict["inference_type"] == "CLASS":
         if os.path.basename(input_file).split("_")[3].split("-")[0] == "sigma":
             results_dict["sigma"] = float(os.path.basename(input_file).split("_")[3].split("-")[-1])
-
 
     OUTPUT_LOCATION = output
     input_folder = input_file
