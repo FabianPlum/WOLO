@@ -56,7 +56,9 @@ def compute_scores(input_file,
                    known_ID=False,
                    gt_from_name=False,
                    detection_format=False,
-                   dataset_name=None):
+                   dataset_name=None,
+                   create_plots=False,
+                   exclude_aug="True"):
     """
     replaces original main method, runs all analysis computing
     """
@@ -80,6 +82,12 @@ def compute_scores(input_file,
     """
     get all info about the model type and its training data
     """
+    # exclude "aug" models (due to inconsistent results with custom augmentation scripts)
+    if exclude_aug:
+        # CLASS_MultiCamAnts-and-synth-simple_20_sigma-2_cross-entropy_aug--
+        if results_dict["model"].split("_")[-1] == "aug":
+            return
+
     # real data
     if os.path.basename(input_file).split("_")[1].split("-")[0] == "MultiCamAnts":
         results_dict["real data"] = "MultiCamAnts"
@@ -99,9 +107,10 @@ def compute_scores(input_file,
     if dataset_name is not None:
         print("INFO: Producing results for", input_file, "with dataset", dataset_name)
 
-    # call the following once to produce resized plots across the notebook
-    plt.rcParams['figure.figsize'] = [10, 8]
-    plt.rcParams['figure.dpi'] = 100
+    if create_plots:
+        # call the following once to produce resized plots across the notebook
+        plt.rcParams['figure.figsize'] = [10, 8]
+        plt.rcParams['figure.dpi'] = 100
 
     if detection_format:
         DETECTION = True
@@ -245,29 +254,31 @@ def compute_scores(input_file,
     y_actu = pd.Series([CLASS_LIST[x] for x in true_classes], name='True class')
     y_pred = pd.Series([CLASS_LIST[x] for x in pred_classes], name='Predicted class')
 
-    df_confusion = pd.crosstab(y_actu, y_pred)
-    df_conf_norm = df_confusion.div(df_confusion.sum(axis=1), axis="index")
+    if create_plots:
+        df_confusion = pd.crosstab(y_actu, y_pred)
+        df_conf_norm = df_confusion.div(df_confusion.sum(axis=1), axis="index")
 
-    df_conf_norm.to_csv(os.path.join(OUTPUT_LOCATION, output_name + "---Confusion_matrix.csv"))
+        df_conf_norm.to_csv(os.path.join(OUTPUT_LOCATION, output_name + "---Confusion_matrix.csv"))
 
-    confusion_matrix = metrics.confusion_matrix(true_classes, pred_classes, normalize="true")
+        confusion_matrix = metrics.confusion_matrix(true_classes, pred_classes, normalize="true")
 
-    cm_display = metrics.ConfusionMatrixDisplay(confusion_matrix=confusion_matrix,
-                                                display_labels=CLASS_LIST)
+        cm_display = metrics.ConfusionMatrixDisplay(confusion_matrix=confusion_matrix,
+                                                    display_labels=CLASS_LIST)
 
-    cm_display.plot(cmap=plt.cm.gray_r,
-                    include_values=False,  # set to true to display individual values
-                    xticks_rotation=45)
+        cm_display.plot(cmap=plt.cm.gray_r,
+                        include_values=False,  # set to true to display individual values
+                        xticks_rotation=45)
 
-    # update colour scale to enforce displaying normalised values between 0 and 1
-    for im in plt.gca().get_images():
-        im.set_clim(vmin=0, vmax=1)
+        # update colour scale to enforce displaying normalised values between 0 and 1
+        for im in plt.gca().get_images():
+            im.set_clim(vmin=0, vmax=1)
 
-    plt.title("Confusion matrix")
-    plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---Confusion_matrix.svg"), dpi='figure', pad_inches=0.1)
-    if verbose:
-        plt.show()
-    plt.close()
+        plt.title("Confusion matrix")
+        plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---Confusion_matrix.svg"), dpi='figure',
+                    pad_inches=0.1)
+        if verbose:
+            plt.show()
+        plt.close()
 
     """
     Compute class wise scores
@@ -390,52 +401,54 @@ def compute_scores(input_file,
     Finally, plot the resulting class-wise MAPE (comparing prediction to ground truth, regardless of inference method) and class-wise accuracy
     """
 
-    plt.rcParams['figure.figsize'] = [6, 4]
-    plt.rcParams['figure.dpi'] = 100
-    fig, ax = plt.subplots()
-    ax.bar(np.arange(len(CLASS_LIST)), class_wise_scores[:, 1],
-           # yerr=class_wise_scores[:,2],
-           align='center',
-           alpha=0.5,
-           ecolor='black', capsize=10)
+    if create_plots:
+        plt.rcParams['figure.figsize'] = [6, 4]
+        plt.rcParams['figure.dpi'] = 100
+        fig, ax = plt.subplots()
+        ax.bar(np.arange(len(CLASS_LIST)), class_wise_scores[:, 1],
+               # yerr=class_wise_scores[:,2],
+               align='center',
+               alpha=0.5,
+               ecolor='black', capsize=10)
 
-    ax.set_ylabel('MAPE')
-    ax.set_xticks(np.arange(len(CLASS_LIST)))
-    ax.set_xticklabels(CLASS_LIST, rotation=45)
-    ax.set_title('class-wise MAPE')
-    ax.yaxis.grid(True)
-    # ax.set_yscale('log')
-    ax.set_ylim(1, 500)
+        ax.set_ylabel('MAPE')
+        ax.set_xticks(np.arange(len(CLASS_LIST)))
+        ax.set_xticklabels(CLASS_LIST, rotation=45)
+        ax.set_title('class-wise MAPE')
+        ax.yaxis.grid(True)
+        # ax.set_yscale('log')
+        ax.set_ylim(1, 500)
 
-    # Save the figure and show
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---class-wise_MAPE.svg"), dpi='figure', pad_inches=0.1)
-    if verbose:
-        plt.show()
-    plt.close()
+        # Save the figure and show
+        plt.tight_layout()
+        plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---class-wise_MAPE.svg"), dpi='figure', pad_inches=0.1)
+        if verbose:
+            plt.show()
+        plt.close()
 
-    plt.rcParams['figure.figsize'] = [6, 4]
-    plt.rcParams['figure.dpi'] = 100
-    fig, ax = plt.subplots()
-    ax.bar(np.arange(len(CLASS_LIST)), class_wise_scores[:, -1],
-           # yerr=class_wise_scores[:,2],
-           align='center',
-           alpha=0.5,
-           ecolor='black', capsize=10)
+        plt.rcParams['figure.figsize'] = [6, 4]
+        plt.rcParams['figure.dpi'] = 100
+        fig, ax = plt.subplots()
+        ax.bar(np.arange(len(CLASS_LIST)), class_wise_scores[:, -1],
+               # yerr=class_wise_scores[:,2],
+               align='center',
+               alpha=0.5,
+               ecolor='black', capsize=10)
 
-    ax.set_ylabel('MAPE')
-    ax.set_xticks(np.arange(len(CLASS_LIST)))
-    ax.set_xticklabels(CLASS_LIST, rotation=45)
-    ax.set_title('class-wise accuracy')
-    ax.yaxis.grid(True)
-    ax.set_ylim(0, 1)
+        ax.set_ylabel('MAPE')
+        ax.set_xticks(np.arange(len(CLASS_LIST)))
+        ax.set_xticklabels(CLASS_LIST, rotation=45)
+        ax.set_title('class-wise accuracy')
+        ax.yaxis.grid(True)
+        ax.set_ylim(0, 1)
 
-    # Save the figure and show
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---class-wise_accuracy.svg"), dpi='figure', pad_inches=0.1)
-    if verbose:
-        plt.show()
-    plt.close()
+        # Save the figure and show
+        plt.tight_layout()
+        plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---class-wise_accuracy.svg"), dpi='figure',
+                    pad_inches=0.1)
+        if verbose:
+            plt.show()
+        plt.close()
 
     # Plot ground truth vs predicted weights (log-log-scaled)
     gt_v_pred_xy = []
@@ -452,13 +465,14 @@ def compute_scores(input_file,
 
         gt_v_pred_xy.append([value[0][0], pred_temp])
 
-    plt.rcParams['figure.figsize'] = [6, 6]
-    plt.rcParams['figure.dpi'] = 100
-    fig, ax = plt.subplots()
-    if known_ID:
-        alpha = 0.1
-    else:
-        alpha = 0.4
+    if create_plots:
+        plt.rcParams['figure.figsize'] = [6, 6]
+        plt.rcParams['figure.dpi'] = 100
+        fig, ax = plt.subplots()
+        if known_ID:
+            alpha = 0.1
+        else:
+            alpha = 0.4
 
     x = np.array([i[0] for i in gt_v_pred_xy])
     y = np.array([i[1] for i in gt_v_pred_xy])
@@ -468,13 +482,14 @@ def compute_scores(input_file,
     # x_ordered = x.copy()[order_points]
     # y_ordered = y.copy()[order_points]
 
-    ax.scatter(x,
-               y,
-               marker=None, cmap=None,
-               vmin=0.0005, vmax=0.05,
-               alpha=alpha)
+    if create_plots:
+        ax.scatter(x,
+                   y,
+                   marker=None, cmap=None,
+                   vmin=0.0005, vmax=0.05,
+                   alpha=alpha)
 
-    ax.plot([0.0005, 0.05], [0.0005, 0.05], '-k', linewidth=1.0)
+        ax.plot([0.0005, 0.05], [0.0005, 0.05], '-k', linewidth=1.0)
 
     # parity plot statistics
     # Calculate Statistics of the Parity Plot
@@ -512,33 +527,34 @@ def compute_scores(input_file,
     output_txt.write(msg + "\n")
     results_dict["R^2"] = R_squared
 
-    ax.plot(x, y_hat)
+    if create_plots:
+        ax.plot(x, y_hat)
 
-    text = f"$\: \: Mean \: Absolute \: Error \: (MAE) " \
-           f"= {mean_abs_err:0.3f}$ \n $ Root \: Mean \: Square \: Error \: (RMSE) " \
-           f"= {rmse:0.3f}$ \n $ RMSE \: / \: Std(y) = {rmse_std :0.3f}$ \n " \
-           f"$R^2 = {metrics.r2_score(x, y):0.3f}$"
+        text = f"$\: \: Mean \: Absolute \: Error \: (MAE) " \
+               f"= {mean_abs_err:0.3f}$ \n $ Root \: Mean \: Square \: Error \: (RMSE) " \
+               f"= {rmse:0.3f}$ \n $ RMSE \: / \: Std(y) = {rmse_std :0.3f}$ \n " \
+               f"$R^2 = {metrics.r2_score(x, y):0.3f}$"
 
-    plt.gca().text(0.05, 0.95, text, transform=plt.gca().transAxes,
-                   fontsize=14, verticalalignment='top')
+        plt.gca().text(0.05, 0.95, text, transform=plt.gca().transAxes,
+                       fontsize=14, verticalalignment='top')
 
-    ax.set_ylabel('predicted weight [g]')
-    ax.set_xlabel('ground truth weight [g]')
-    ax.set_title('gt vs predicted weight')
-    ax.yaxis.grid(True)
-    ax.set_yscale('log')
-    ax.set_xscale('log')
-    ax.set_ylim(0.001, 0.05)
-    ax.set_xlim(0.001, 0.05)
+        ax.set_ylabel('predicted weight [g]')
+        ax.set_xlabel('ground truth weight [g]')
+        ax.set_title('gt vs predicted weight')
+        ax.yaxis.grid(True)
+        ax.set_yscale('log')
+        ax.set_xscale('log')
+        ax.set_ylim(0.001, 0.05)
+        ax.set_xlim(0.001, 0.05)
 
-    # Save the figure and show
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---gt_vs_predicted_weight.svg"),
-                dpi='figure', pad_inches=0.1)
-    plt.close()
+        # Save the figure and show
+        plt.tight_layout()
+        plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---gt_vs_predicted_weight.svg"),
+                    dpi='figure', pad_inches=0.1)
 
-    if verbose:
-        plt.show()
+        if verbose:
+            plt.show()
+        plt.close()
 
     output_txt.write("\n- - - - - - - - - - - - - - - - - - - - - - - - - - - -\n")
     output_txt.close()
