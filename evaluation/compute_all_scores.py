@@ -77,7 +77,11 @@ def compute_scores(input_file,
         "MAPE_true": None,
         "MAPE_ideal": None,
         "MAPE_class": None,
-        "COV": None}
+        "COV": None,
+        "Spearman rank-order": None,
+        # "Spearman rank-pvalue": None,
+        "Accuracy bias": None,
+        "Precision bias": None}
 
     """
     get all info about the model type and its training data
@@ -477,6 +481,11 @@ def compute_scores(input_file,
     x = np.array([i[0] for i in gt_v_pred_xy])
     y = np.array([i[1] for i in gt_v_pred_xy])
 
+    results_dict["Spearman rank-order"] = sp.spearmanr(x, y).statistic
+    # results_dict["Spearman rank-pvalue"] = sp.spearmanr(x, y).pvalue
+
+    results_dict["Precision bias"] = sp.spearmanr(x, coeff_var_ind).statistic
+
     # order_points = x.argsort()
 
     # x_ordered = x.copy()[order_points]
@@ -493,15 +502,22 @@ def compute_scores(input_file,
 
     # parity plot statistics
     # Calculate Statistics of the Parity Plot
+    # switched from linear fit to log scaled fit and reporting R^2 in log space
+
+    log_x = np.log10(x)
+    log_y = np.log10(y)
+
     mean_abs_err = np.mean(np.abs(x - y))
     rmse = np.sqrt(np.mean((x - y) ** 2))
     rmse_std = rmse / np.std(y)
-    z = np.polyfit(x, y, 1)
+
+    z = np.polyfit(log_x, log_y, 1)
+
     try:
-        y_hat = np.poly1d(z)(x)
+        y_hat = np.power(10, np.poly1d(z)(log_x))
     except ValueError:
         z = z.flatten()
-        y_hat = np.poly1d(z)(x)
+        y_hat = np.power(10, np.poly1d(z)(log_x))
 
     print("\n\n-----------------\n\n", z, "\n\n-----------------\n\n")
 
@@ -521,7 +537,7 @@ def compute_scores(input_file,
     output_txt.write(msg + "\n")
     results_dict["y intercept"] = y_intercept
 
-    R_squared = round(metrics.r2_score(x, y), 4)
+    R_squared = round(metrics.r2_score(log_x, log_y), 4)
     msg = "R^2         : " + str(R_squared)
     print(msg)
     output_txt.write(msg + "\n")
