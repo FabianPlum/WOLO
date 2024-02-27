@@ -73,15 +73,19 @@ def compute_scores(input_file,
         "R^2": None,
         "slope": None,
         "y intercept": None,
-        "accuracy": None,
+        "classification accuracy": None,
         "MAPE_true": None,
         "MAPE_ideal": None,
-        "MAPE_class": None,
         "COV": None,
         "Spearman rank-order": None,
-        # "Spearman rank-pvalue": None,
-        "Accuracy bias": None,
-        "Precision bias": None}
+        "Spearman rank-order p-value": None,
+        "Absolute Accuracy bias": None,
+        "Absolute Accuracy bias p-value": None,
+        "Relative Accuracy bias": None,
+        "Relative Accuracy bias p-value": None,
+        "Precision bias": None,
+        "Precision bias p-value": None
+    }
 
     """
     get all info about the model type and its training data
@@ -207,10 +211,14 @@ def compute_scores(input_file,
     print(msg)
 
     if CLASS_LIST is not None:
-        MAPE_ideal, STDAPE_ideal = goAPE(y_true=true_weight,
-                                         y_pred=true_classes,
-                                         CLASS_LIST=CLASS_LIST,
-                                         gt_v_class=True)
+        if REGRESSION:
+            MAPE_ideal = 0
+            STDAPE_ideal = 0
+        else:
+            MAPE_ideal, STDAPE_ideal = goAPE(y_true=true_weight,
+                                             y_pred=true_classes,
+                                             CLASS_LIST=CLASS_LIST,
+                                             gt_v_class=True)
         msg = "MAPE_ideal : " + str(round(MAPE_ideal, 2)) + "  STDAPE_ideal : " + str(round(STDAPE_ideal, 2))
         output_txt.write(msg + "\n")
         print(msg)
@@ -235,8 +243,7 @@ def compute_scores(input_file,
 
     results_dict["MAPE_true"] = MAPE_true
     results_dict["MAPE_ideal"] = MAPE_ideal
-    results_dict["MAPE_class"] = MAPE_class
-    results_dict["accuracy"] = accuracy
+    results_dict["classification accuracy"] = accuracy
 
     """    
     Produce confusion matrices
@@ -456,6 +463,8 @@ def compute_scores(input_file,
 
     # Plot ground truth vs predicted weights (log-log-scaled)
     gt_v_pred_xy = []
+    APEs = []
+    PEs = []  # percentage error (relative, so we retain the notion of over or under-prediction for the accuracy bias)
 
     for key, value in ind_list.items():
         # originally the MEAN was used to get the "average" prediction
@@ -467,7 +476,17 @@ def compute_scores(input_file,
         else:
             pred_temp = sp.mode(np.array([i[1] for i in value]))[0]
 
-        gt_v_pred_xy.append([value[0][0], pred_temp])
+        gt_temp = value[0][0]
+        gt_v_pred_xy.append([gt_temp, pred_temp])
+
+        PE = 100 * (pred_temp - gt_temp) / gt_temp
+        PEs.append(PE)
+
+        APE = np.abs(PE)
+        APEs.append(APE)
+
+    MAPE_new = np.mean(np.array(APEs))
+    results_dict["MAPE_true"] = MAPE_new
 
     if create_plots:
         plt.rcParams['figure.figsize'] = [6, 6]
@@ -482,9 +501,16 @@ def compute_scores(input_file,
     y = np.array([i[1] for i in gt_v_pred_xy])
 
     results_dict["Spearman rank-order"] = sp.spearmanr(x, y).statistic
-    # results_dict["Spearman rank-pvalue"] = sp.spearmanr(x, y).pvalue
+    results_dict["Spearman rank-order p-value"] = sp.spearmanr(x, y).pvalue
 
     results_dict["Precision bias"] = sp.spearmanr(x, coeff_var_ind).statistic
+    results_dict["Precision bias p-value"] = sp.spearmanr(x, coeff_var_ind).pvalue
+
+    results_dict["Absolute Accuracy bias"] = sp.spearmanr(x, np.array(APEs)).statistic
+    results_dict["Absolute Accuracy bias p-value"] = sp.spearmanr(x, np.array(APEs)).pvalue
+
+    results_dict["Relative Accuracy bias"] = sp.spearmanr(x, np.array(PEs)).statistic
+    results_dict["Relative Accuracy bias p-value"] = sp.spearmanr(x, np.array(PEs)).pvalue
 
     # order_points = x.argsort()
 
