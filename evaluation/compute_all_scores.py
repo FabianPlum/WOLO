@@ -57,8 +57,8 @@ def compute_scores(input_file,
                    gt_from_name=False,
                    detection_format=False,
                    dataset_name=None,
-                   create_plots=False,
-                   exclude_aug="True"):
+                   create_plots=True,
+                   exclude_aug=True):
     """
     replaces original main method, runs all analysis computing
     """
@@ -70,9 +70,8 @@ def compute_scores(input_file,
         "real data": None,
         "synth data": None,
         "sigma": None,
-        "R^2": None,
-        "slope": None,
-        "y intercept": None,
+        "R^2 linear": None,
+        "R^2 log": None,
         "classification accuracy": None,
         "MAPE_true": None,
         "MAPE_ideal": None,
@@ -93,7 +92,7 @@ def compute_scores(input_file,
     # exclude "aug" models (due to inconsistent results with custom augmentation scripts)
     if exclude_aug:
         # CLASS_MultiCamAnts-and-synth-simple_20_sigma-2_cross-entropy_aug--
-        if results_dict["model"].split("_")[-1] == "aug":
+        if results_dict["model"].split("---")[0].split("_")[-1] == "aug":
             return
 
     # real data
@@ -170,7 +169,10 @@ def compute_scores(input_file,
         REGRESSION = False
     else:
         CLASS_LIST = twenty_class  # use classification approach of 20 class list for displaying regressor outputs
-        REGRESSION = True
+        if DETECTION:
+            REGRESSION = False
+        else:
+            REGRESSION = True
 
     if len(data[0]) < 6 and not DETECTION:  # regressors have fewer lines as the output activations aren't relevant
         true_classes = [scaled_20.index(int(x.replace("\\", "/").split("/")[-2])) for x in [row[1] for row in data[1:]]]
@@ -271,7 +273,8 @@ def compute_scores(input_file,
 
         df_conf_norm.to_csv(os.path.join(OUTPUT_LOCATION, output_name + "---Confusion_matrix.csv"))
 
-        confusion_matrix = metrics.confusion_matrix(true_classes, pred_classes, normalize="true")
+        confusion_matrix = metrics.confusion_matrix(true_classes, pred_classes, normalize="true",
+                                                    labels=range(0, len(CLASS_LIST)))
 
         cm_display = metrics.ConfusionMatrixDisplay(confusion_matrix=confusion_matrix,
                                                     display_labels=CLASS_LIST)
@@ -371,11 +374,11 @@ def compute_scores(input_file,
             output_txt.write(msg + "\n")
             print(msg)
 
-            class_wise_scores[class_temp] = [prev_class_temp,
-                                             MAPE_true, STDAPE_true,
-                                             MAPE_ideal, STDAPE_ideal,
-                                             MAPE_class, STDAPE_class,
-                                             accuracy]
+            class_wise_scores[prev_class_temp] = [prev_class_temp,
+                                                  MAPE_true, STDAPE_true,
+                                                  MAPE_ideal, STDAPE_ideal,
+                                                  MAPE_class, STDAPE_class,
+                                                  accuracy]
 
             prev_class_temp = class_temp
             class_wise_elements_gt_cl = []
@@ -389,7 +392,6 @@ def compute_scores(input_file,
         class_wise_elements_p.append(p)
 
     # clean class_wise_scores, in case not all classes are represented
-    # TODO -> check why class 0 is not represented (even when present) in output plots
     class_wise_scores = [[i, 0, 0, 0, 0, 0, 0, 0] if elem == [] else elem for i, elem in enumerate(class_wise_scores)]
     class_wise_scores = np.array(class_wise_scores)
 
@@ -471,7 +473,7 @@ def compute_scores(input_file,
         # gt_v_pred_xy.append([value[0][0], np.mean([i[1] for i in value])])
 
         # use mode prediction when running classifier or detector, use mean prediction for regressor
-        if REGRESSION:
+        if results_dict["inference_type"] == "REG":
             pred_temp = np.mean([i[1] for i in value])
         else:
             pred_temp = sp.mode(np.array([i[1] for i in value]))[0]
@@ -500,17 +502,20 @@ def compute_scores(input_file,
     x = np.array([i[0] for i in gt_v_pred_xy])
     y = np.array([i[1] for i in gt_v_pred_xy])
 
-    results_dict["Spearman rank-order"] = sp.spearmanr(x, y).statistic
-    results_dict["Spearman rank-order p-value"] = sp.spearmanr(x, y).pvalue
+    try:
+        results_dict["Spearman rank-order"] = sp.spearmanr(x, y).statistic
+        results_dict["Spearman rank-order p-value"] = sp.spearmanr(x, y).pvalue
 
-    results_dict["Precision bias"] = sp.spearmanr(x, coeff_var_ind).statistic
-    results_dict["Precision bias p-value"] = sp.spearmanr(x, coeff_var_ind).pvalue
+        results_dict["Precision bias"] = sp.spearmanr(x, coeff_var_ind).statistic
+        results_dict["Precision bias p-value"] = sp.spearmanr(x, coeff_var_ind).pvalue
 
-    results_dict["Absolute Accuracy bias"] = sp.spearmanr(x, np.array(APEs)).statistic
-    results_dict["Absolute Accuracy bias p-value"] = sp.spearmanr(x, np.array(APEs)).pvalue
+        results_dict["Absolute Accuracy bias"] = sp.spearmanr(x, np.array(APEs)).statistic
+        results_dict["Absolute Accuracy bias p-value"] = sp.spearmanr(x, np.array(APEs)).pvalue
 
-    results_dict["Relative Accuracy bias"] = sp.spearmanr(x, np.array(PEs)).statistic
-    results_dict["Relative Accuracy bias p-value"] = sp.spearmanr(x, np.array(PEs)).pvalue
+        results_dict["Relative Accuracy bias"] = sp.spearmanr(x, np.array(PEs)).statistic
+        results_dict["Relative Accuracy bias p-value"] = sp.spearmanr(x, np.array(PEs)).pvalue
+    except:
+        print("=============\n\n SPEARMAN KILLED THE RADIO-STAR \n\n =============")
 
     # order_points = x.argsort()
 
@@ -518,11 +523,7 @@ def compute_scores(input_file,
     # y_ordered = y.copy()[order_points]
 
     if create_plots:
-        ax.scatter(x,
-                   y,
-                   marker=None, cmap=None,
-                   vmin=0.0005, vmax=0.05,
-                   alpha=alpha)
+        ax.scatter(x, y, alpha=alpha)
 
         ax.plot([0.0005, 0.05], [0.0005, 0.05], '-k', linewidth=1.0)
 
@@ -535,7 +536,7 @@ def compute_scores(input_file,
 
     mean_abs_err = np.mean(np.abs(x - y))
     rmse = np.sqrt(np.mean((x - y) ** 2))
-    rmse_std = rmse / np.std(y)
+    rmse_std = rmse / max(0.00001, np.std(y))
 
     z = np.polyfit(log_x, log_y, 1)
 
@@ -555,19 +556,20 @@ def compute_scores(input_file,
     msg = "slope       : " + str(slope)
     print(msg)
     output_txt.write(msg + "\n")
-    results_dict["slope"] = slope
 
     y_intercept = np.round(z[1], 4)
     msg = "y intercept : " + str(y_intercept)
     print(msg)
     output_txt.write(msg + "\n")
-    results_dict["y intercept"] = y_intercept
 
-    R_squared = round(metrics.r2_score(log_x, log_y), 4)
-    msg = "R^2         : " + str(R_squared)
+    R_squared_log = round(metrics.r2_score(log_x, log_y), 4)
+    R_squared_lin = round(metrics.r2_score(x, y), 4)
+
+    msg = "R^2         : " + str(R_squared_log)
     print(msg)
     output_txt.write(msg + "\n")
-    results_dict["R^2"] = R_squared
+    results_dict["R^2 log"] = R_squared_log
+    results_dict["R^2 linear"] = R_squared_lin
 
     if create_plots:
         ax.plot(x, y_hat)
@@ -575,7 +577,7 @@ def compute_scores(input_file,
         text = f"$\: \: Mean \: Absolute \: Error \: (MAE) " \
                f"= {mean_abs_err:0.3f}$ \n $ Root \: Mean \: Square \: Error \: (RMSE) " \
                f"= {rmse:0.3f}$ \n $ RMSE \: / \: Std(y) = {rmse_std :0.3f}$ \n " \
-               f"$R^2 = {metrics.r2_score(x, y):0.3f}$"
+               f"$R^2 = {metrics.r2_score(log_x, log_y):0.3f}$"
 
         plt.gca().text(0.05, 0.95, text, transform=plt.gca().transAxes,
                        fontsize=14, verticalalignment='top')

@@ -48,12 +48,7 @@ if __name__ == '__main__':
                        "DSLR-C920"],
                       ["D:/WOLO/HPC_trained_models/WOLO_DETECT/RESULTS_TEST_128x128_CORVIN9000", True, True,
                        "CORVIN9000"]]
-    """
 
-    all_file_paths = [["D:/WOLO/HPC_trained_models/WOLO_DETECT/RESULTS", False, True,
-                       "VAL"]]
-    
-    """
     parallel = True
 
     # define pool_size and create worker pool
@@ -161,12 +156,9 @@ if __name__ == '__main__':
 
             out_clean[result["model"]] = temp_entry
 
-        print(out_clean[result["model"]])
-
     print(len(out_clean))
-    print(out_clean[list(out_clean.keys())[0]].keys())
 
-    with open('all_results.csv', 'w', newline='', encoding='utf-8') as f:
+    with open(os.path.join(results_path, 'all_results.csv'), 'w', newline='', encoding='utf-8') as f:
         w = csv.DictWriter(f, out_clean[list(out_clean.keys())[0]].keys())
         w.writeheader()
         w.writerows(list(out_clean.values()))
