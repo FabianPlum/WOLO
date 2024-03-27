@@ -120,7 +120,7 @@ if __name__ == '__main__':
     "inference_type"    -> REG / CLASS / DETECT
     "real data"         -> MultiCamAnts
     "synth data"        -> simple / standard / all
-    "sigma"             -> one-hote / 0.5 / 1.0 / 2.0 / 4.0
+    "sigma"             -> one-hot / 0.5 / 1.0 / 2.0 / 4.0
     "R^2" [log]  
     "slope"
     "y intercept"
