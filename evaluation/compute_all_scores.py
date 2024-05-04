@@ -76,6 +76,7 @@ def compute_scores(input_file,
         "R^2 log": None,
         "classification accuracy": None,
         "MAPE_true": None,
+        "MAPE_std": None,
         "MAPE_ideal": None,
         "COV": None,
         "Prediction_Stability": None,
@@ -437,37 +438,18 @@ def compute_scores(input_file,
         plt.rcParams['figure.figsize'] = [6, 4]
         plt.rcParams['figure.dpi'] = 100
         fig, ax = plt.subplots()
-        ax.bar(np.arange(len(CLASS_LIST)), class_wise_scores[:, 1],
-               # yerr=class_wise_scores[:,2],
-               align='center',
-               alpha=0.5,
-               ecolor='black', capsize=10)
 
-        ax.set_ylabel('MAPE')
-        ax.set_xticks(np.arange(len(CLASS_LIST)))
-        ax.set_xticklabels(CLASS_LIST, rotation=45)
-        ax.set_title('class-wise MAPE')
-        ax.yaxis.grid(True)
-        # ax.set_yscale('log')
-        ax.set_ylim(1, 500)
-
-        # Save the figure and show
-        plt.tight_layout()
-        plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---class-wise_MAPE.svg"), dpi='figure', pad_inches=0.1)
-        if verbose:
-            plt.show()
-        plt.close()
-
-        plt.rcParams['figure.figsize'] = [6, 4]
-        plt.rcParams['figure.dpi'] = 100
-        fig, ax = plt.subplots()
+        ax.scatter(np.arange(len(CLASS_LIST)), class_wise_scores[:, -1])
+        # alt: bar plots
+        """
         ax.bar(np.arange(len(CLASS_LIST)), class_wise_scores[:, -1],
                # yerr=class_wise_scores[:,2],
                align='center',
                alpha=0.5,
                ecolor='black', capsize=10)
+        """
 
-        ax.set_ylabel('MAPE')
+        ax.set_ylabel('categorical accuracy')
         ax.set_xticks(np.arange(len(CLASS_LIST)))
         ax.set_xticklabels(CLASS_LIST, rotation=45)
         ax.set_title('class-wise accuracy')
@@ -487,6 +469,7 @@ def compute_scores(input_file,
     APEs = []
     PEs = []  # percentage error (relative, so we retain the notion of over or under-prediction for the accuracy bias)
     PSs = []  # prediction stabilities as the ratio of within-mode predicted class over all predictions
+    comb_pred = [[] for _ in range(len(CLASS_LIST))]
 
     # store gt and combined preds in additional csv file
     with open(os.path.join(OUTPUT_LOCATION, output_name + "---gt_vs_comb_pred.csv"), "w", newline='') as csv_file:
@@ -498,7 +481,6 @@ def compute_scores(input_file,
             writer.writerow(["gt", "pred mode"])
 
         for key, value in ind_list.items():
-
             # originally the MEAN was used to get the "average" prediction
             # gt_v_pred_xy.append([value[0][0], np.mean([i[1] for i in value])])
 
@@ -508,18 +490,22 @@ def compute_scores(input_file,
             else:
                 pred_temp = sp.mode(np.array([i[1] for i in value]))[0]
 
+            pred_std = np.std([i[1] for i in value])
+
             gt_temp = value[0][0]
 
             # write out combined prediction and gt
             writer.writerow([gt_temp, pred_temp])
 
-            gt_v_pred_xy.append([gt_temp, pred_temp])
+            gt_v_pred_xy.append([gt_temp, pred_temp, pred_std])
 
             PE = 100 * (pred_temp - gt_temp) / gt_temp
             PEs.append(PE)
 
             APE = np.abs(PE)
             APEs.append(APE)
+
+            comb_pred[find_class(CLASS_LIST, gt_temp)].append(APE)
 
             # get equivalent classes for regressor
             if results_dict["inference_type"] == "REG":
@@ -532,12 +518,71 @@ def compute_scores(input_file,
             PS = pred_all.count(pred_mode) / len(pred_all)
             PSs.append(PS)
 
-    PS_out = np.mean(np.array(PSs))
-    MAPE_true = np.mean(np.array(APEs))
+    PS_out = np.nanmean(np.array(PSs))
+    MAPE_true = np.nanmean(np.array(APEs))
+    MAPE_std = np.nanstd(np.array(APEs))
+
     results_dict["MAPE_true"] = MAPE_true
+    results_dict["MAPE_std"] = MAPE_std
     results_dict["Prediction_Stability"] = PS_out
 
     print("-----------------\n\n Prediction Stability:  ", PS_out)
+
+    if create_plots:
+        # next, create class-wise MAPE plots with the grouped predictions so re-compute class-wise MAPEs from extracted
+        # mean / mode predictions above, so not accross all individual predictions but the cumulative prediction across
+        # frames. This approach will stabilise spread in APEs and be consistent with reported MAPEs
+
+        class_wise_MAPE = [np.mean(i) for i in comb_pred]
+        class_wise_stdAPE = [np.std(i) for i in comb_pred]
+
+        plt.rcParams['figure.figsize'] = [6, 4]
+        plt.rcParams['figure.dpi'] = 100
+        fig, ax = plt.subplots()
+
+        ax.errorbar(np.arange(len(CLASS_LIST)),
+                    class_wise_MAPE,
+                    class_wise_stdAPE, linestyle='None', marker='^', capsize=3)
+
+        ax.set_ylabel('MAPE')
+        ax.set_xticks(np.arange(len(CLASS_LIST)))
+        ax.set_xticklabels(CLASS_LIST, rotation=45)
+        ax.set_title('class-wise MAPE combined')
+        ax.yaxis.grid(True)
+        ax.set_yscale('log')
+        ax.set_ylim(1, 5000)
+
+        # Save the figure and show
+        plt.tight_layout()
+        plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---class-wise_MAPE_COMBINED.svg"), dpi='figure',
+                    pad_inches=0.1)
+        if verbose:
+            plt.show()
+        plt.close()
+
+        # also, plot original style
+        plt.rcParams['figure.figsize'] = [6, 4]
+        plt.rcParams['figure.dpi'] = 100
+        fig, ax = plt.subplots()
+
+        ax.errorbar(np.arange(len(CLASS_LIST)),
+                    class_wise_scores[:, 1],
+                    class_wise_scores[:, 2], linestyle='None', marker='^', capsize=3)
+
+        ax.set_ylabel('MAPE')
+        ax.set_xticks(np.arange(len(CLASS_LIST)))
+        ax.set_xticklabels(CLASS_LIST, rotation=45)
+        ax.set_title('class-wise MAPE')
+        ax.yaxis.grid(True)
+        ax.set_yscale('log')
+        ax.set_ylim(1, 5000)
+
+        # Save the figure and show
+        plt.tight_layout()
+        plt.savefig(os.path.join(OUTPUT_LOCATION, output_name + "---class-wise_MAPE.svg"), dpi='figure', pad_inches=0.1)
+        if verbose:
+            plt.show()
+        plt.close()
 
     if create_plots:
         plt.rcParams['figure.figsize'] = [6, 6]
@@ -550,6 +595,7 @@ def compute_scores(input_file,
 
     x = np.array([i[0] for i in gt_v_pred_xy])
     y = np.array([i[1] for i in gt_v_pred_xy])
+    stds = np.array([i[2] for i in gt_v_pred_xy])
 
     try:
         results_dict["Spearman rank-order"] = sp.spearmanr(x, y).statistic
@@ -571,10 +617,16 @@ def compute_scores(input_file,
     # x_ordered = x.copy()[order_points]
     # y_ordered = y.copy()[order_points]
 
+    plot_limits = [0.0005, 0.06]
+
     if create_plots:
         ax.scatter(x, y, alpha=alpha)
-
-        ax.plot([0.0005, 0.05], [0.0005, 0.05], '-k', linewidth=1.0)
+        """
+        ax.errorbar(x,
+                    y,
+                    stds, linestyle='None', marker='^', capsize=3, alpha=alpha)
+        """
+        ax.plot(plot_limits, plot_limits, '-k', linewidth=1.0)
 
     # parity plot statistics
     # Calculate Statistics of the Parity Plot
@@ -589,11 +641,16 @@ def compute_scores(input_file,
 
     z = np.polyfit(log_x, log_y, 1)
 
+    log_x_extended = np.copy(log_x)
+    log_x_extended = log_x_extended.tolist()
+    log_x_extended.append(np.log10(plot_limits[1]))
+    log_x_extended = np.asarray(log_x_extended)
+
     try:
-        y_hat = np.power(10, np.poly1d(z)(log_x))
+        y_hat = np.power(10, np.poly1d(z)(log_x_extended))
     except ValueError:
         z = z.flatten()
-        y_hat = np.power(10, np.poly1d(z)(log_x))
+        y_hat = np.power(10, np.poly1d(z)(log_x_extended))
 
     print("\n\n-----------------\n\n", z, "\n\n-----------------\n\n")
 
@@ -621,7 +678,13 @@ def compute_scores(input_file,
     results_dict["R^2 linear"] = R_squared_lin
 
     if create_plots:
-        ax.plot(x, y_hat)
+        # create extended fitted line to match plot dimensions
+        x_extended = np.copy(x)
+        x_extended = x_extended.tolist()
+        x_extended.append(plot_limits[1])
+        x_extended = np.asarray(x_extended)
+
+        ax.plot(x_extended, y_hat)
 
         text = f"$\: \: Mean \: Absolute \: Error \: (MAE) " \
                f"= {mean_abs_err:0.3f}$ \n $ Root \: Mean \: Square \: Error \: (RMSE) " \
@@ -637,8 +700,8 @@ def compute_scores(input_file,
         ax.yaxis.grid(True)
         ax.set_yscale('log')
         ax.set_xscale('log')
-        ax.set_ylim(0.001, 0.05)
-        ax.set_xlim(0.001, 0.05)
+        ax.set_ylim(0.0005, 0.06)
+        ax.set_xlim(0.0005, 0.06)
 
         # Save the figure and show
         plt.tight_layout()
