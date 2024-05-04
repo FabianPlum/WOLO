@@ -14,6 +14,8 @@ evaluation/example_data
 evaluation/example_data/*
 
 #EAEAAO
+EAEAAO/.idea
+EAEAAO/.ipynb_checkpoints
 EAEAAO/OUTPUTS
 EAEAAO/OUTPUTS/*
 EAEAAO/EXTRACTED_POSE_FEATURE_VECTORS
