@@ -30,13 +30,13 @@ def clean_array(array, strip_NaN=True, strip_zero=True):
     return array_np
 
 
-input_video = "I:/EAEAAO/FOOTAGE/2019-08-03/2019-08-03_bramble-left.avi"
-input_tracks = "I:/EAEAAO/Tracking/OUTPUT_TRACKS/2019-08-03_bramble-left"
-input_poses = "I:/EAEAAO/POSES/2019-08-03_bramble-left"
-input_file_order = "I:/EAEAAO/jobscripts/EAEAAO_batch_pose.pbs.o8454338.16"
+input_video = "I:/EAEAAO/FOOTAGE/2019-07-22/2019-07-22_bramble_left.mp4"
+input_tracks = "I:/EAEAAO/Tracking/OUTPUT_TRACKS/2019-07-22_bramble_left"
+input_poses = "I:/EAEAAO/POSES/2019-07-22_bramble_left"
+input_file_order = "I:/EAEAAO/jobscripts/EAEAAO_batch_pose.pbs.o8454338.1"
 
-start_frame = 0
-end_frame = 1000
+start_frame = 170000
+end_frame = 171000
 
 # read in order file and re-order tracks, so they correspond to their corresponding poses
 file_order = open(input_file_order, 'r')
@@ -94,7 +94,7 @@ for r, d, f in os.walk(input_poses):
 all_poses_sorted = [pose for _, pose in sorted(zip(all_pose_ids, all_poses))]
 all_sizes_sorted = [size for _, size in sorted(zip(all_pose_ids, all_sizes))]
 
-compose_video_with_overlay(cap, tracks, poses=all_poses_sorted, scale=1.0, show=(16000, 18000),
+compose_video_with_overlay(cap, tracks, poses=all_poses_sorted, scale=1.0, show=(start_frame, end_frame),
                            size_classes=all_sizes_sorted, constant_frame_rate=False, pose_point_size=2,
                            video_name="LIGHT-MODE_" + input_video.split("/")[-1], DEBUG=True, thresh=0.5,
                            lightmode=True)
