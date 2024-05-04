@@ -1,6 +1,7 @@
 """
 WOLO - compute regression and classification metrics
-This script takes the test_data_pred_results.csv files produced during network fitting and evaluation on test-data as an input and computes the desired output metrics and plots:
+This script takes the test_data_pred_results.csv files produced during network fitting and evaluation on test-data as
+an input and computes the desired output metrics and plots:
 
 MAPE_true
 MAPE_ideal
@@ -10,6 +11,7 @@ confusion matrices
 class-wise scores
 coefficient of variation
 """
+
 import csv
 import os
 import numpy as np
@@ -76,6 +78,7 @@ def compute_scores(input_file,
         "MAPE_true": None,
         "MAPE_ideal": None,
         "COV": None,
+        "Prediction_Stability": None,
         "Spearman rank-order": None,
         "Spearman rank-order p-value": None,
         "Absolute Accuracy bias": None,
@@ -243,7 +246,7 @@ def compute_scores(input_file,
     Update results dict with MAPEs & accuracy
     """
 
-    results_dict["MAPE_true"] = MAPE_true
+    results_dict["MAPE_true"] = MAPE_true  # overwritten below -> report MAPE
     results_dict["MAPE_ideal"] = MAPE_ideal
     results_dict["classification accuracy"] = accuracy
 
@@ -296,7 +299,8 @@ def compute_scores(input_file,
 
     """
     Compute class wise scores
-    and prediction stability in terms of the average coefficient of variation across continuous samples containing the same individual
+    and prediction stability in terms of the average coefficient of variation across continuous samples containing the 
+    same individual
     """
 
     data_comb = zip(file_names, true_classes, pred_classes, true_weight, pred_weight)
@@ -320,19 +324,33 @@ def compute_scores(input_file,
         class_temp = gt_cl
         # cut away the frame number so individuals have consistent names
         vid = "_".join(file_components[2].split("_")[0:-2]) + "_" + file_components[2].split("_")[-1]
+
         # alternatively, if no consistent identities are given in the video path, assume
         # a change in gt weight corresponds to a new individual
+        # in the validation split of MultiCamAnts we need to add a new ID for individuals with the EXACT same weight
+
+        # okay, this is going to feel hacky, but I don't want to rename all the data.
+        # SO. let's filter explicitly to correctly group repeated predictions.
+        # the first TWO words + GT are the key EXCEPT for PLAIN
+
         if not known_ID:
-            if str(gt) not in ind_list:
-                ind_list[str(gt)] = []
+            vid_parts = vid.split("_")
+            if vid_parts[0] == "PLAIN":
+                if vid_parts[1] == "FRAGMENTS" or vid_parts[1] == "LEAF":
+                    id_key = "PLAIN_FRAGMENTS-" + str(gt)
+                else:
+                    id_key = "PLAIN-" + str(gt)
+            else:
+                id_key = '_'.join(vid_parts[0:2]) + "-" + str(gt)
+
+            if id_key not in ind_list:
+                ind_list[id_key] = []
+
+            ind_list[id_key].append([gt, p])
 
         else:
             if vid not in ind_list:
                 ind_list[vid] = []
-
-        if not known_ID:
-            ind_list[str(gt)].append([gt, p])
-        else:
             ind_list[vid].append([gt, p])
 
         if class_temp != prev_class_temp or f == file_names[-1]:
@@ -411,7 +429,8 @@ def compute_scores(input_file,
 
     """
     class wise score visualisation
-    Finally, plot the resulting class-wise MAPE (comparing prediction to ground truth, regardless of inference method) and class-wise accuracy
+    Finally, plot the resulting class-wise MAPE (comparing prediction to ground truth, regardless of inference method) 
+    and class-wise accuracy
     """
 
     if create_plots:
@@ -467,28 +486,58 @@ def compute_scores(input_file,
     gt_v_pred_xy = []
     APEs = []
     PEs = []  # percentage error (relative, so we retain the notion of over or under-prediction for the accuracy bias)
+    PSs = []  # prediction stabilities as the ratio of within-mode predicted class over all predictions
 
-    for key, value in ind_list.items():
-        # originally the MEAN was used to get the "average" prediction
-        # gt_v_pred_xy.append([value[0][0], np.mean([i[1] for i in value])])
+    # store gt and combined preds in additional csv file
+    with open(os.path.join(OUTPUT_LOCATION, output_name + "---gt_vs_comb_pred.csv"), "w", newline='') as csv_file:
+        writer = csv.writer(csv_file, delimiter=',')
 
-        # use mode prediction when running classifier or detector, use mean prediction for regressor
         if results_dict["inference_type"] == "REG":
-            pred_temp = np.mean([i[1] for i in value])
+            writer.writerow(["gt", "pred mean"])
         else:
-            pred_temp = sp.mode(np.array([i[1] for i in value]))[0]
+            writer.writerow(["gt", "pred mode"])
 
-        gt_temp = value[0][0]
-        gt_v_pred_xy.append([gt_temp, pred_temp])
+        for key, value in ind_list.items():
 
-        PE = 100 * (pred_temp - gt_temp) / gt_temp
-        PEs.append(PE)
+            # originally the MEAN was used to get the "average" prediction
+            # gt_v_pred_xy.append([value[0][0], np.mean([i[1] for i in value])])
 
-        APE = np.abs(PE)
-        APEs.append(APE)
+            # use mode prediction when running classifier or detector, use mean prediction for regressor
+            if results_dict["inference_type"] == "REG":
+                pred_temp = np.mean([i[1] for i in value])
+            else:
+                pred_temp = sp.mode(np.array([i[1] for i in value]))[0]
 
-    MAPE_new = np.mean(np.array(APEs))
-    results_dict["MAPE_true"] = MAPE_new
+            gt_temp = value[0][0]
+
+            # write out combined prediction and gt
+            writer.writerow([gt_temp, pred_temp])
+
+            gt_v_pred_xy.append([gt_temp, pred_temp])
+
+            PE = 100 * (pred_temp - gt_temp) / gt_temp
+            PEs.append(PE)
+
+            APE = np.abs(PE)
+            APEs.append(APE)
+
+            # get equivalent classes for regressor
+            if results_dict["inference_type"] == "REG":
+                pred_mode = find_class(CLASS_LIST, pred_temp)
+                pred_all = [find_class(CLASS_LIST, i[1]) for i in value]
+            else:
+                pred_mode = pred_temp
+                pred_all = [i[1] for i in value]
+
+            PS = pred_all.count(pred_mode) / len(pred_all)
+            PSs.append(PS)
+
+    PS_out = np.mean(np.array(PSs))
+    MAPE_true = np.mean(np.array(APEs))
+    results_dict["MAPE_true"] = MAPE_true
+    results_dict["Prediction_Stability"] = PS_out
+
+    print("-----------------\n\n Prediction Stability:  ", PS_out)
 
     if create_plots:
         plt.rcParams['figure.figsize'] = [6, 6]
