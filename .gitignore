@@ -12,3 +12,9 @@ evaluation/.idea/*
 # datasets
 evaluation/example_data
 evaluation/example_data/*
+
+#EAEAAO
+EAEAAO/OUTPUTS
+EAEAAO/OUTPUTS/*
+EAEAAO/EXTRACTED_POSE_FEATURE_VECTORS
+EAEAAO/EXTRACTED_POSE_FEATURE_VECTORS/*
