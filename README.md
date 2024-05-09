@@ -56,6 +56,10 @@ Engine**](https://www.biorxiv.org/content/10.1101/2023.04.20.537685v1).
   </tr>
 </table>
 
+### 3D models and datasets
+- 3D Models [10.5281/zenodo.11167946](https://zenodo.org/records/11167946)
+- Datasets [10.5281/zenodo.11167521](https://zenodo.org/records/11167521)
+
 ### References
 
 When using **WOLO** datasets and models or our other projects in your work, please make sure to cite them:
