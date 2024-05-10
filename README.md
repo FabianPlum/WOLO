@@ -75,13 +75,15 @@ When using **WOLO** datasets and models or our other projects in your work, plea
         year = {2021}
         }
     
-    @misc{Plum2023b,
-        title = {OmniTrax},
-        author = {Plum, Fabian},
-        resource = {GitHub repository},
-        howpublished = {https://github.com/FabianPlum/OmniTrax},
-        year = {2022}
-        }
+    @article{Plum2024, 
+    title = {OmniTrax: A deep learning-driven multi-animal tracking and pose-estimation add-on for Blender},
+    doi = {10.21105/joss.05549}, 
+    url = {https://doi.org/10.21105/joss.05549},
+    year = {2024}, publisher = {The Open Journal}, 
+    volume = {9}, number = {95}, pages = {5549}, 
+    author = {Fabian Plum},  
+    journal = {Journal of Open Source Software} 
+    }
 
     @article{Plum2023a,
         title = {replicAnt: a pipeline for generating annotated images of animals in complex environments using Unreal Engine},
