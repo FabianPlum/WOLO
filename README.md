@@ -64,6 +64,16 @@ Engine**](https://www.biorxiv.org/content/10.1101/2023.04.20.537685v1).
 
 When using **WOLO** datasets and models or our other projects in your work, please make sure to cite them:
 
+    @article{Plum2024B,
+	    author = {Plum, Fabian and Plum, Lena and Bischoff, Corvin and Labonte, David},
+	    title = {WOLO: Wilson Only Looks Once {\textendash} Estimating ant body mass from reference-free images using deep convolutional neural networks},
+	    elocation-id = {2024.05.15.594277},
+	    year = {2024},
+	    doi = {10.1101/2024.05.15.594277},
+	    publisher = {Cold Spring Harbor Laboratory},
+	    URL = {https://www.biorxiv.org/content/early/2024/05/17/2024.05.15.594277},
+	    journal = {bioRxiv}}
+
     @article{PlumLabonte2021,
         title = {scAnt — An open-source platform for the creation of 3D models of arthropods (and other small objects)},
         author = {Plum, Fabian and Labonte, David},
@@ -72,8 +82,7 @@ When using **WOLO** datasets and models or our other projects in your work, plea
         journal = {PeerJ},
         keywords = {3D,Digitisation,Macro imaging,Morphometry,Photogrammetry,Zoology},
         volume = {9},
-        year = {2021}
-        }
+        year = {2021}}
     
     @article{Plum2024, 
         title = {OmniTrax: A deep learning-driven multi-animal tracking and pose-estimation add-on for Blender},
@@ -82,10 +91,9 @@ When using **WOLO** datasets and models or our other projects in your work, plea
         year = {2024}, publisher = {The Open Journal}, 
         volume = {9}, number = {95}, pages = {5549}, 
         author = {Fabian Plum},  
-        journal = {Journal of Open Source Software} 
-    }
+        journal = {Journal of Open Source Software}}
 
-    @article{Plum2023a,
+    @article{Plum2023,
         title = {replicAnt: a pipeline for generating annotated images of animals in complex environments using Unreal Engine},
         author = {Plum, Fabian and Bulla, René and Beck, Hendrik K and Imirzian, Natalie and Labonte, David},
         doi = {10.1038/s41467-023-42898-9},
@@ -93,8 +101,7 @@ When using **WOLO** datasets and models or our other projects in your work, plea
         journal = {Nature Communications},
         url = {https://doi.org/10.1038/s41467-023-42898-9},
         volume = {14},
-        year = {2023}
-        }
+        year = {2023}}
 
 ## Contributing
 Pull requests are warmly welcome. For major changes, please open an issue first to discuss what you would like to change.
