@@ -33,21 +33,24 @@ def clean_array(array, strip_NaN=True, strip_zero=True):
 input_video = "I:/EAEAAO/FOOTAGE/2019-07-22/2019-07-22_bramble_left.mp4"
 input_tracks = "I:/EAEAAO/Tracking/OUTPUT_TRACKS/2019-07-22_bramble_left"
 input_poses = "I:/EAEAAO/POSES/2019-07-22_bramble_left"
-input_file_order = "I:/EAEAAO/jobscripts/EAEAAO_batch_pose.pbs.o8454338.1"
+input_file_order = "I:/EAEAAO/jobscripts/EAEAAO_batch_pose.pbs.o8454338.1"  # set to NONE when files are in order
 
 start_frame = 170000
 end_frame = 171000
 
-# read in order file and re-order tracks, so they correspond to their corresponding poses
-file_order = open(input_file_order, 'r')
-order_raw = file_order.readlines()
+if input_file_order is not None:
+    # read in order file and re-order tracks, so they correspond to their corresponding poses
+    file_order = open(input_file_order, 'r')
+    order_raw = file_order.readlines()
 
-# Strips the newline character
-order = []
-for line in order_raw:
-    if line.split("  with ")[0][-4:] == ".csv":
-        order.append(line.split(" ")[2])
-        print(order[-1])
+    # Strips the newline character
+    order = []
+    for line in order_raw:
+        if line.split("  with ")[0][-4:] == ".csv":
+            order.append(line.split(" ")[2])
+            print(order[-1])
+else:
+    order = None
 
 # now we can load the captured video file and display it
 cap = cv2.VideoCapture(input_video)
