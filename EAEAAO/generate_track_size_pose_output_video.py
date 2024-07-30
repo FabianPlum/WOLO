@@ -100,4 +100,4 @@ all_sizes_sorted = [size for _, size in sorted(zip(all_pose_ids, all_sizes))]
 compose_video_with_overlay(cap, tracks, poses=all_poses_sorted, scale=1.0, show=(start_frame, end_frame),
                            size_classes=all_sizes_sorted, constant_frame_rate=False, pose_point_size=2,
                            video_name="LIGHT-MODE_" + input_video.split("/")[-1], DEBUG=True, thresh=0.5,
-                           lightmode=True)
+                           lightmode=True, patch_size=128)

@@ -263,7 +263,7 @@ class BarGraph:
 def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=(0, math.inf), scale=1.0,
                                constant_frame_rate=True, thresh=0.5, pose_point_size=3,
                                video_name="Analysed video", DEBUG=False, WRITE_OUT=True,
-                               lightmode=False):
+                               lightmode=False, patch_size=128, pose_size=300):
     """
     Function displays imported footage with tracking results, poses, and class, as overlay
     For now, this happens at a fixed resolution and input videos will be rescaled to 720p
@@ -283,9 +283,7 @@ def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=
     frame_num = show[0]
 
     # define the size of each tracking rectangle
-    target_size = 128 * scale
-
-    pose_display_size = 300 * scale
+    target_size = patch_size * scale  # for 720p videos
 
     # get frame rate of imported footage
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -356,7 +354,9 @@ def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=
             full_frame = np.zeros(full_frame_dims, dtype=np.uint8)
             full_frame_clean = np.zeros(full_frame_dims, dtype=np.uint8)
 
-        full_frame_clean[200:920, 520:1800, :] = frame_clean
+        resized = cv2.resize(frame_clean, (1280, 720))
+        # needed if using non-720p footage
+        full_frame_clean[200:920, 520:1800, :] = resized
 
         for bbox in box_coords:
             start_point = bbox[1], bbox[0]
@@ -435,7 +435,7 @@ def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=
                             point = temp_pose[0][p * 3 + 1:p * 3 + 3]
                             # convert the location to the full frame equivalent
                             # first down scale (from 300 to 128)
-                            point_rescaled = (point / 300) * 128
+                            point_rescaled = (point / pose_size) * patch_size
                             # then add the track centre
                             point_global = point_rescaled + px_start
                             frame = cv2.circle(frame, (int(point_global[0]), int(point_global[1])),
@@ -454,7 +454,7 @@ def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=
 
                 vis_track += 1
 
-        full_frame[200:920, 520:1800, :] = frame
+        full_frame[200:920, 520:1800, :] = cv2.resize(frame, (1280, 720))
 
         cv2.putText(full_frame, "file: " + video_name, (100, 80),
                     font, 1.6, line_colour, 1, cv2.LINE_AA)
