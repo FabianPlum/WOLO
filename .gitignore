@@ -13,6 +13,11 @@ evaluation/.idea/*
 evaluation/example_data
 evaluation/example_data/*
 
+DATASETS/*
+RESULTS/*
+RESULTS-TEST/*
+TRAINED_NETWORKS/*
+
 #EAEAAO
 EAEAAO/.idea
 EAEAAO/.ipynb_checkpoints
