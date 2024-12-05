@@ -54,23 +54,40 @@ def importLabeledImages(target_directory):
 
 def MAPE(y_true, y_pred, scaling_factor=1, min_val=0):
     """
-    Compute the MAPE (Mean Absolute Percentage Error) from the true and the predicted classes
-    Supports batches, thus shapes of (batch x num_classes)
-    :param y_true: ground truth of length m x n
-    :param y_pred: prediction of length m x n
-    :param scaling_factor: used to de-normalise values
-    :param min_val: when de-normalising for MSE, include 0 value subtraction
-    :param delog: reverting applied log and normalisation before computing MAPE
-    :return: MAPE
+    Compute MAPE with protections for near-zero values and optional scaling
+    
+    Designed to work with:
+    1. Sigmoid-scaled outputs (0-1 range)
+    2. Log-transformed data (when LOG=True)
+    3. Near-zero target values
+    
+    Parameters:
+        y_true: Ground truth values (batch x output_dims)
+        y_pred: Predicted values (batch x output_dims)
+        scaling_factor: Multiplier to denormalize values
+        min_val: Offset for denormalization
+    
+    Returns:
+        tf.Tensor: MAPE score (percentage error)
+    
+    Note:
+        - Uses floor value of 1e-5 to prevent division by very small numbers
+        - Automatically handles log-transformed data if LOG=True
+        - Applies denormalization before computing error if scaling_factor != 1
     """
-
     if LOG:
         y_true = delog_and_denorm(y_true)
         y_pred = delog_and_denorm(y_pred)
 
+    # Add floor value to prevent division by very small numbers
+    floor = tf.maximum((y_true + min_val) * scaling_factor, 1e-5)
+    
     APE = tf.math.abs(
-        tf.math.divide(((y_true + min_val) * scaling_factor - (y_pred + min_val) * scaling_factor),
-                       (y_true + min_val) * scaling_factor))
+        tf.math.divide(
+            ((y_true + min_val) * scaling_factor - (y_pred + min_val) * scaling_factor),
+            floor
+        )
+    )
     MAPE = tf.math.multiply(tf.constant(100, tf.float32), tf.math.reduce_mean(APE, axis=-1))
     return MAPE
 
@@ -119,7 +136,7 @@ def build_with_Xception(input_shape, output_nodes=1, refine=False):
     # Importantly, when the base model is set trainable, it is still running in
     # inference mode since we passed training=False (see below xa = ...) when calling it.
     # This means that the batch normalization layers inside won't update their batch statistics.
-    # If they did, they would wreak havoc on the representations learned by the model so far.
+    # If they did, they would wreck havoc on the representations learned by the model so far.
     base_model.trainable = refine
 
     inputs = keras.Input(shape=input_shape)
@@ -135,7 +152,7 @@ def build_with_Xception(input_shape, output_nodes=1, refine=False):
     # The base model contains batchnorm layers. We want to keep them in inference mode
     # when we unfreeze the base model for fine-tuning, so we make sure that the
     # base_model is running in inference mode here.
-    xa = base_model(x, training=False)
+    xa = base_model(x, training=refine)
     x1 = keras.layers.GlobalAveragePooling2D()(xa)
     x1_d = tf.keras.layers.Dropout(.2)(x1)
     # A Dense classifier with a single unit
@@ -145,10 +162,9 @@ def build_with_Xception(input_shape, output_nodes=1, refine=False):
     x3 = keras.layers.Dense(4096, activation="relu")(x2_d)  # 1024
     x3_d = tf.keras.layers.Dropout(.2)(x3)
 
-    # x4 = keras.layers.Dense(1024, activation="relu")(x3_d)  # 1024
-    # x4_d = tf.keras.layers.Dropout(.2)(x4)
-
-    outputs = keras.layers.Dense(output_nodes)(x3_d)
+    # Raw dense output followed by scaling
+    dense_out = keras.layers.Dense(output_nodes, name='dense_out')(x3_d)
+    outputs = keras.layers.Lambda(lambda x: tf.nn.sigmoid(x), name='output')(dense_out)
 
     model = keras.Model(inputs, outputs)
 
@@ -213,11 +229,115 @@ def build_with_EfficientNet(input_shape, output_nodes=1, refine=False):
 
     top_dropout_rate = 0.2
     x = keras.layers.Dropout(top_dropout_rate, name="top_dropout")(x)
-    outputs = keras.layers.Dense(output_nodes, name="pred")(x)
+    # Raw dense output followed by scaling
+    dense_out = keras.layers.Dense(output_nodes, name='dense_out')(x)
+    outputs = keras.layers.Lambda(lambda x: tf.nn.sigmoid(x), name='output')(dense_out)
 
     model = keras.Model(inputs, outputs)
 
     return model
+
+
+def build_simple_cnn(input_shape, output_nodes=1):
+    """
+    Build a simple CNN for regression with scaled outputs
+    
+    Architecture includes:
+    - Standard CNN backbone with regularization
+    - Final dense layer without activation
+    - Sigmoid scaling layer to constrain outputs to (0,1)
+    
+    Parameters:
+        input_shape (tuple): Shape of input images (height, width, channels)
+        output_nodes (int): Number of output values to predict
+    
+    Returns:
+        keras.Model: Compiled model with sigmoid-scaled outputs
+    """
+    inputs = keras.Input(shape=input_shape, name='input_layer')
+    
+    # First convolutional block
+    conv1_1 = keras.layers.Conv2D(32, (3, 3), padding='same', name='conv1_1')(inputs)
+    bn1_1 = keras.layers.BatchNormalization(name='bn1_1')(conv1_1)
+    act1_1 = keras.layers.Activation('relu', name='relu1_1')(bn1_1)
+    conv1_2 = keras.layers.Conv2D(32, (3, 3), padding='same', name='conv1_2')(act1_1)
+    bn1_2 = keras.layers.BatchNormalization(name='bn1_2')(conv1_2)
+    act1_2 = keras.layers.Activation('relu', name='relu1_2')(bn1_2)
+    pool1 = keras.layers.MaxPooling2D((2, 2), name='pool1')(act1_2)
+    drop1 = keras.layers.Dropout(0.25, name='dropout1')(pool1)
+
+    # Second convolutional block
+    conv2_1 = keras.layers.Conv2D(64, (3, 3), padding='same', name='conv2_1')(drop1)
+    bn2_1 = keras.layers.BatchNormalization(name='bn2_1')(conv2_1)
+    act2_1 = keras.layers.Activation('relu', name='relu2_1')(bn2_1)
+    conv2_2 = keras.layers.Conv2D(64, (3, 3), padding='same', name='conv2_2')(act2_1)
+    bn2_2 = keras.layers.BatchNormalization(name='bn2_2')(conv2_2)
+    act2_2 = keras.layers.Activation('relu', name='relu2_2')(bn2_2)
+    pool2 = keras.layers.MaxPooling2D((2, 2), name='pool2')(act2_2)
+    drop2 = keras.layers.Dropout(0.25, name='dropout2')(pool2)
+
+    # Third convolutional block
+    conv3_1 = keras.layers.Conv2D(128, (3, 3), padding='same', name='conv3_1')(drop2)
+    bn3_1 = keras.layers.BatchNormalization(name='bn3_1')(conv3_1)
+    act3_1 = keras.layers.Activation('relu', name='relu3_1')(bn3_1)
+    conv3_2 = keras.layers.Conv2D(128, (3, 3), padding='same', name='conv3_2')(act3_1)
+    bn3_2 = keras.layers.BatchNormalization(name='bn3_2')(conv3_2)
+    act3_2 = keras.layers.Activation('relu', name='relu3_2')(bn3_2)
+    pool3 = keras.layers.MaxPooling2D((2, 2), name='pool3')(act3_2)
+    drop3 = keras.layers.Dropout(0.25, name='dropout3')(pool3)
+
+    # Dense layers
+    flatten = keras.layers.Flatten(name='flatten')(drop3)
+    dense1 = keras.layers.Dense(512, name='dense1')(flatten)
+    bn_dense1 = keras.layers.BatchNormalization(name='bn_dense1')(dense1)
+    act_dense1 = keras.layers.Activation('relu', name='relu_dense1')(bn_dense1)
+    drop_dense1 = keras.layers.Dropout(0.5, name='dropout_dense1')(act_dense1)
+    
+    # Output layers with controlled scaling
+    dense_out = keras.layers.Dense(output_nodes, name='dense_out')(drop_dense1)  # Raw output
+    outputs = keras.layers.Lambda(lambda x: tf.nn.sigmoid(x), name='output')(dense_out)  # Scale to (0,1)
+    
+    model = keras.Model(inputs, outputs, name='simple_cnn')
+    return model
+
+
+def custom_regression_loss(alpha=0.7, beta=0.3, epsilon=1e-5):
+    """
+    Custom loss combining MAPE and MSE components for regression with near-zero values
+    
+    The loss function is designed to handle regression tasks where:
+    1. Target values can be very close to zero
+    2. Both relative (MAPE) and absolute (MSE) errors are important
+    3. Training stability is crucial
+    
+    Parameters:
+        alpha (float): Weight for MAPE component (0-1)
+        beta (float): Weight for MSE component (0-1)
+        epsilon (float): Minimum floor value to prevent division by very small numbers
+    
+    Returns:
+        function: Loss function that takes (y_true, y_pred) and returns combined loss
+    
+    Note:
+        - alpha + beta should equal 1.0 for proper weighting
+        - epsilon should be set based on the minimum meaningful value in your dataset
+    """
+    def loss(y_true, y_pred):
+        # Floor value prevents division by very small numbers
+        floor = tf.maximum(y_true, epsilon)
+        
+        # MAPE component with protection against near-zero division
+        mape = tf.reduce_mean(tf.abs((y_true - y_pred) / floor)) * 100
+        
+        # MSE component provides stability and handles absolute errors
+        mse = tf.reduce_mean(tf.square(y_true - y_pred))
+        
+        # Weighted combination of both components
+        total_loss = alpha * mape + beta * mse
+        
+        return total_loss
+    
+    return loss
 
 
 if __name__ == "__main__":
@@ -230,7 +350,7 @@ if __name__ == "__main__":
     ap.add_argument("-d", "--dataset", required=True, type=str)
     ap.add_argument("-r", "--rand_seed", default=0, required=False, type=int)
     ap.add_argument("-o", "--output_dir", required=True, type=str)
-    ap.add_argument("-b", "--backbone", default="Xception", required=False, type=str)
+    ap.add_argument("-b", "--backbone", default=None, required=False, type=str)
     ap.add_argument("-l", "--LOSS", default="MAPE", required=False, type=str)
 
     # Optional flags
@@ -240,6 +360,11 @@ if __name__ == "__main__":
     ap.add_argument("-aug", "--augmentation", default=False, required=False, type=bool)
     ap.add_argument("-log", "--log_transform", default=False, required=False, type=bool)
     ap.add_argument("-t", "--test", default=False, required=False, type=str)
+    ap.add_argument("-lr", "--learning_rate", default=0.0001, required=False, type=float)
+    ap.add_argument("-rX", "--refine_Xception", default=False, required=False, type=bool)
+    ap.add_argument("-cp", "--checkpoint", default=None, required=False, type=str,
+                    help="Path to checkpoint to resume training from")
+
 
     args = vars(ap.parse_args())
 
@@ -259,6 +384,8 @@ if __name__ == "__main__":
     DATA_PATH = args["dataset"]
     TEST_DATA = args["test"]
     SEED = int(args["rand_seed"])
+    AUGMENTATION = args["augmentation"]
+    LEARNING_RATE = float(args["learning_rate"])
 
     print("\n--------------------------------------",
           "\nINFO: Training Settings\n",
@@ -266,31 +393,20 @@ if __name__ == "__main__":
           "\nSAVE_WEIGHTS_EVERY: ", SAVE_WEIGHTS_EVERY,
           "\nBATCH_SIZE: ", BATCH_SIZE,
           "\nVERBOSE: ", VERBOSE,
+          "\nBACKBONE: ", args["backbone"],
           "\nOPTIMIZER: ", OPTIMIZER,
+          "\nLEARNING_RATE: ", LEARNING_RATE,
           "\nLOSS: ", LOSS,
           "\nLOG_DATA", LOG,
           "\nDATA_PATH: ", DATA_PATH,
           "\nTEST_DATA: ", TEST_DATA,
+          "\nAUGMENTATION: ", AUGMENTATION,
           "\nSEED: ", SEED)
 
-    if args["augmentation"]:
+    if args["augmentation"] == True:
         print("\nINFO: Data augmentation - enabled\n")
-
-        trainAug = tf.keras.Sequential([
-            tf.keras.layers.RandomFlip("horizontal_and_vertical"),
-            tf.keras.layers.RandomZoom(
-                height_factor=(-0.05, -0.15),
-                width_factor=(-0.05, -0.15)),
-            tf.keras.layers.RandomRotation(0.3),
-            tf.keras.layers.RandomBrightness(0.2),
-            tf.keras.layers.RandomContrast(0.2)
-        ])
-
     else:
         print("\nINFO: Data augmentation - disabled\n")
-
-    if LOG:
-        print("\nINFO: Log-transforming labels vector\n")
 
     print("\n--------------------------------------\n")
 
@@ -322,9 +438,40 @@ if __name__ == "__main__":
                                     num_parallel_calls=NUM_PARALLEL_CALLS)
 
         # apply data augmentation, if enabled
-        if args["augmentation"]:
-            train_ds = train_ds.map(lambda x, y: (trainAug(x), y),
-                                    num_parallel_calls=NUM_PARALLEL_CALLS)
+        if args["augmentation"] == True:
+            trainAug = tf.keras.Sequential([
+                # Spatial augmentations
+                tf.keras.layers.RandomFlip("horizontal", seed=SEED),
+                tf.keras.layers.RandomRotation(
+                    factor=0.1,  # ±10% rotation
+                    seed=SEED,
+                    fill_mode='reflect'
+                ),
+                tf.keras.layers.RandomZoom(
+                    height_factor=(-0.1, 0.1),  # Allow both zoom in and out
+                    width_factor=(-0.1, 0.1),
+                    seed=SEED,
+                    fill_mode='reflect'
+                ),
+                
+                # Intensity augmentations - more conservative
+                tf.keras.layers.RandomBrightness(
+                    factor=0.05,  # ±5% brightness
+                    seed=SEED
+                ),
+                tf.keras.layers.RandomContrast(
+                    factor=0.05,  # ±5% contrast
+                    seed=SEED
+                )
+            ])
+
+            def apply_augmentation(image, label):
+                if tf.random.uniform([], seed=SEED) < 0.5:  # 50% chance to apply augmentation
+                    return trainAug(image), label
+                return image, label
+
+            train_ds = train_ds.map(apply_augmentation, 
+                                   num_parallel_calls=NUM_PARALLEL_CALLS)
 
         # create batch and pre-fetch so one batch is always available
         train_ds = train_ds.batch(BATCH_SIZE)
@@ -339,12 +486,50 @@ if __name__ == "__main__":
         model = build_with_EfficientNet(input_shape=INPUT_SHAPE_RGB, output_nodes=NUM_CLASSES)
         print("\nINFO: Using EfficientNet backbone")
     else:
-        print("\nWARNING: No valid backbone selected! Terminating training...")
-        exit()
+        # Simple CNN
+        model = build_simple_cnn(input_shape=INPUT_SHAPE_RGB, output_nodes=NUM_CLASSES)
+        print("\nINFO: Using simple CNN architecture")
 
-    model.compile(loss=LOSS,
-                  optimizer=OPTIMIZER,
-                  metrics=[MAPE])  # [LOSS, "mean_squared_error", "mean_absolute_error"])
+    if LOSS.split("_")[0] == "custom":
+        alpha = float(LOSS.split("_")[1])
+        beta = float(LOSS.split("_")[2])
+        LOSS = custom_regression_loss(alpha=alpha, beta=beta)
+
+    if args["checkpoint"]:
+        print(f"\nINFO: Loading weights from checkpoint: {args['checkpoint']}")
+        try:
+            model.load_weights(args["checkpoint"]).expect_partial()
+            print("INFO: Successfully loaded weights from checkpoint")
+            
+            if args["refine_Xception"] and args["backbone"] == "Xception":
+                print("INFO: Unfreezing Xception backbone for fine-tuning")
+                # Find the Xception base model by name instead of type
+                base_model = None
+                for layer in model.layers:
+                    if 'xception' in layer.name.lower():
+                        base_model = layer
+                        break
+                        
+                if base_model is not None:
+                    # Unfreeze the backbone
+                    base_model.trainable = True
+                    # Update the model's training phase
+                    base_model._trainable = True  # Ensure the trainable flag is set at the layer level
+                    print("INFO: Successfully unfroze Xception backbone")
+                else:
+                    print("WARNING: Could not find Xception backbone layer")
+                    
+        except Exception as e:
+            print(f"ERROR: Failed to load checkpoint: {e}")
+            print("INFO: Full checkpoint path:", os.path.abspath(args["checkpoint"]))
+            print("INFO: Directory contents:", os.listdir(os.path.dirname(args["checkpoint"])))
+            exit(1)
+
+    model.compile(
+        loss=LOSS,
+        optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
+        metrics=[MAPE]
+    )
     model.summary()
 
     # Include the epoch in the file name (uses `str.format`)
@@ -430,10 +615,12 @@ if __name__ == "__main__":
                   "\nBATCH_SIZE: ", BATCH_SIZE,
                   "\nVERBOSE: ", VERBOSE,
                   "\nOPTIMIZER: ", OPTIMIZER,
+                  "\nLEARNING_RATE: ", LEARNING_RATE,
                   "\nLOSS: ", LOSS,
                   "\nLOG_DATA", LOG,
                   "\nDATA_PATH: ", DATA_PATH,
                   "\nTEST_DATA: ", TEST_DATA,
+                  "\nAUGMENTATION: ", AUGMENTATION,
                   "\nSEED: ", SEED)
 
             print("\nINFO: Final TRUE MAPE:   %.2f" % score[1])

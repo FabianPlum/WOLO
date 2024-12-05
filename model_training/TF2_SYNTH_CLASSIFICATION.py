@@ -248,7 +248,7 @@ def build_with_Xception(input_shape, output_nodes=1, refine=False):
     # The base model contains batchnorm layers. We want to keep them in inference mode
     # when we unfreeze the base model for fine-tuning, so we make sure that the
     # base_model is running in inference mode here.
-    xa = base_model(x, training=False)
+    xa = base_model(x, training=refine)
     x1 = keras.layers.GlobalAveragePooling2D()(xa)
     x1_d = tf.keras.layers.Dropout(.2)(x1)
     # A Dense classifier with a single unit
@@ -308,6 +308,55 @@ def build_with_EfficientNet(input_shape, output_nodes=1, refine=False):
     return model
 
 
+def build_simple_cnn(input_shape, output_nodes=1):
+    """
+    Build a simple convolutional neural network with standard regularization techniques
+    """
+    inputs = keras.Input(shape=input_shape, name='input_layer')
+    
+    # First convolutional block
+    conv1_1 = keras.layers.Conv2D(32, (3, 3), padding='same', name='conv1_1')(inputs)
+    bn1_1 = keras.layers.BatchNormalization(name='bn1_1')(conv1_1)
+    act1_1 = keras.layers.Activation('relu', name='relu1_1')(bn1_1)
+    conv1_2 = keras.layers.Conv2D(32, (3, 3), padding='same', name='conv1_2')(act1_1)
+    bn1_2 = keras.layers.BatchNormalization(name='bn1_2')(conv1_2)
+    act1_2 = keras.layers.Activation('relu', name='relu1_2')(bn1_2)
+    pool1 = keras.layers.MaxPooling2D((2, 2), name='pool1')(act1_2)
+    drop1 = keras.layers.Dropout(0.25, name='dropout1')(pool1)
+
+    # Second convolutional block
+    conv2_1 = keras.layers.Conv2D(64, (3, 3), padding='same', name='conv2_1')(drop1)
+    bn2_1 = keras.layers.BatchNormalization(name='bn2_1')(conv2_1)
+    act2_1 = keras.layers.Activation('relu', name='relu2_1')(bn2_1)
+    conv2_2 = keras.layers.Conv2D(64, (3, 3), padding='same', name='conv2_2')(act2_1)
+    bn2_2 = keras.layers.BatchNormalization(name='bn2_2')(conv2_2)
+    act2_2 = keras.layers.Activation('relu', name='relu2_2')(bn2_2)
+    pool2 = keras.layers.MaxPooling2D((2, 2), name='pool2')(act2_2)
+    drop2 = keras.layers.Dropout(0.25, name='dropout2')(pool2)
+
+    # Third convolutional block
+    conv3_1 = keras.layers.Conv2D(128, (3, 3), padding='same', name='conv3_1')(drop2)
+    bn3_1 = keras.layers.BatchNormalization(name='bn3_1')(conv3_1)
+    act3_1 = keras.layers.Activation('relu', name='relu3_1')(bn3_1)
+    conv3_2 = keras.layers.Conv2D(128, (3, 3), padding='same', name='conv3_2')(act3_1)
+    bn3_2 = keras.layers.BatchNormalization(name='bn3_2')(conv3_2)
+    act3_2 = keras.layers.Activation('relu', name='relu3_2')(bn3_2)
+    pool3 = keras.layers.MaxPooling2D((2, 2), name='pool3')(act3_2)
+    drop3 = keras.layers.Dropout(0.25, name='dropout3')(pool3)
+
+    # Dense layers
+    flatten = keras.layers.Flatten(name='flatten')(drop3)
+    dense1 = keras.layers.Dense(512, name='dense1')(flatten)
+    bn_dense1 = keras.layers.BatchNormalization(name='bn_dense1')(dense1)
+    act_dense1 = keras.layers.Activation('relu', name='relu_dense1')(bn_dense1)
+    drop_dense1 = keras.layers.Dropout(0.5, name='dropout_dense1')(act_dense1)
+    
+    outputs = keras.layers.Dense(output_nodes, activation='softmax', name='output')(drop_dense1)
+
+    model = keras.Model(inputs, outputs, name='simple_cnn')
+    return model
+
+
 if __name__ == "__main__":
 
     # construct the argument parse and parse the arguments
@@ -317,7 +366,7 @@ if __name__ == "__main__":
     ap.add_argument("-d", "--dataset", required=True, type=str)
     ap.add_argument("-r", "--rand_seed", default=0, required=False, type=int)
     ap.add_argument("-o", "--output_dir", required=True, type=str)
-    ap.add_argument("-b", "--backbone", default="Xception", required=False, type=str)
+    ap.add_argument("-b", "--backbone", default=None, required=False, type=str)
 
     # Optional flags
     ap.add_argument("-ba", "--balance_classes", default=False, required=False, type=bool)
@@ -326,6 +375,10 @@ if __name__ == "__main__":
     ap.add_argument("-sw", "--save_weights_every", default=10, required=False, type=int)
     ap.add_argument("-aug", "--augmentation", default=False, required=False, type=bool)
     ap.add_argument("-t", "--test", default=False, required=False, type=str)
+    ap.add_argument("-lr", "--learning_rate", default=0.0001, required=False, type=float)
+    ap.add_argument("-rX", "--refine_Xception", default=False, required=False, type=bool)
+    ap.add_argument("-cp", "--checkpoint", default=None, required=False, type=str,
+                    help="Path to checkpoint to resume training from")
 
     args = vars(ap.parse_args())
 
@@ -345,6 +398,8 @@ if __name__ == "__main__":
     DATA_PATH = args["dataset"]
     TEST_DATA = args["test"]
     SEED = int(args["rand_seed"])
+    AUGMENTATION = args["augmentation"]
+    LEARNING_RATE = float(args["learning_rate"])
 
     print("\n--------------------------------------",
           "\nINFO: Training Settings\n",
@@ -354,9 +409,11 @@ if __name__ == "__main__":
           "\nVERBOSE: ", VERBOSE,
           "\nSIGMA: ", SIGMA,
           "\nOPTIMIZER: ", OPTIMIZER,
+          "\nLEARNING_RATE: ", LEARNING_RATE,
           "\nLOSS: ", LOSS,
           "\nDATA_PATH: ", DATA_PATH,
           "\nTEST_DATA: ", TEST_DATA,
+          "\nAUGMENTATION: ", AUGMENTATION,
           "\nSEED: ", SEED)
 
     if args["balance_classes"] == True:
@@ -371,17 +428,6 @@ if __name__ == "__main__":
 
     if args["augmentation"] == True:
         print("\nINFO: Data augmentation - enabled\n")
-
-        trainAug = tf.keras.Sequential([
-            tf.keras.layers.RandomFlip("horizontal_and_vertical"),
-            tf.keras.layers.RandomZoom(
-                height_factor=(-0.05, -0.15),
-                width_factor=(-0.05, -0.15)),
-            tf.keras.layers.RandomRotation(0.3),
-            tf.keras.layers.RandomBrightness(0.2),
-            tf.keras.layers.RandomContrast(0.2)
-        ])
-
     else:
         print("\nINFO: Data augmentation - disabled\n")
 
@@ -401,7 +447,6 @@ if __name__ == "__main__":
         X_paths, y_paths, y_gt = shuffle(X_paths, y_paths, y_gt, random_state=SEED)
 
         # 1.5 balance classes
-
         if args["balance_classes"] == True:
             X_paths, y_paths, y_gt = balance_classes(X_paths, y_paths, y_gt)
 
@@ -423,8 +468,39 @@ if __name__ == "__main__":
 
         # apply data augmentation, if enabled
         if args["augmentation"] == True:
-            train_ds = train_ds.map(lambda x, y: (trainAug(x), y),
-                                    num_parallel_calls=NUM_PARALLEL_CALLS)
+            trainAug = tf.keras.Sequential([
+                # Spatial augmentations
+                tf.keras.layers.RandomFlip("horizontal", seed=SEED),
+                tf.keras.layers.RandomRotation(
+                    factor=0.1,  # ±10% rotation
+                    seed=SEED,
+                    fill_mode='reflect'
+                ),
+                tf.keras.layers.RandomZoom(
+                    height_factor=(-0.1, 0.1),  # Allow both zoom in and out
+                    width_factor=(-0.1, 0.1),
+                    seed=SEED,
+                    fill_mode='reflect'
+                ),
+                
+                # Intensity augmentations - more conservative
+                tf.keras.layers.RandomBrightness(
+                    factor=0.05,  # ±5% brightness
+                    seed=SEED
+                ),
+                tf.keras.layers.RandomContrast(
+                    factor=0.05,  # ±5% contrast
+                    seed=SEED
+                )
+            ])
+
+            def apply_augmentation(image, label):
+                if tf.random.uniform([], seed=SEED) < 0.5:  # 50% chance to apply augmentation
+                    return trainAug(image), label
+                return image, label
+
+            train_ds = train_ds.map(apply_augmentation, 
+                                   num_parallel_calls=NUM_PARALLEL_CALLS)
 
         # create batch and pre-fetch so one batch is always available
         train_ds = train_ds.batch(BATCH_SIZE)
@@ -432,18 +508,49 @@ if __name__ == "__main__":
 
     if args["backbone"] == "Xception":
         # Xception backbone
-        model = build_with_Xception(input_shape=INPUT_SHAPE_RGB, output_nodes=NUM_CLASSES)
+        model = build_with_Xception(input_shape=INPUT_SHAPE_RGB, output_nodes=NUM_CLASSES, refine=args["refine_Xception"])
         print("\nINFO: Using Xception backbone")
     elif args["backbone"] == "Efficient":
         # EfficientNetB7 backbone
         model = build_with_EfficientNet(input_shape=INPUT_SHAPE_RGB, output_nodes=NUM_CLASSES)
         print("\nINFO: Using EfficientNet backbone")
     else:
-        print("\nWARNING: No valid backbone selected! Terminating training...")
-        exit()
+        # Simple CNN
+        model = build_simple_cnn(input_shape=INPUT_SHAPE_RGB, output_nodes=NUM_CLASSES)
+        print("\nINFO: Using simple CNN architecture")
+
+    if args["checkpoint"]:
+        print(f"\nINFO: Loading weights from checkpoint: {args['checkpoint']}")
+        try:
+            model.load_weights(args["checkpoint"]).expect_partial()  # Add expect_partial() to suppress warnings
+            print("INFO: Successfully loaded weights from checkpoint")
+            
+            if args["refine_Xception"] and args["backbone"] == "Xception":
+                print("INFO: Unfreezing Xception backbone for fine-tuning")
+                # Find the Xception base model by name instead of type
+                base_model = None
+                for layer in model.layers:
+                    if 'xception' in layer.name.lower():
+                        base_model = layer
+                        break
+                    
+                if base_model is not None:
+                    # Unfreeze the backbone
+                    base_model.trainable = True
+                    # Update the model's training phase
+                    base_model._trainable = True  # Ensure the trainable flag is set at the layer level
+                    print("INFO: Successfully unfroze Xception backbone")
+                else:
+                    print("WARNING: Could not find Xception backbone layer")
+                    
+        except Exception as e:
+            print(f"ERROR: Failed to load checkpoint: {e}")
+            print("INFO: Full checkpoint path:", os.path.abspath(args["checkpoint"]))
+            print("INFO: Directory contents:", os.listdir(os.path.dirname(args["checkpoint"])))
+            exit(1)
 
     model.compile(loss=LOSS,
-                  optimizer=OPTIMIZER,
+                  optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
                   metrics=["accuracy", MAPE])  # [LOSS, "mean_squared_error", "mean_absolute_error"])
     model.summary()
 
@@ -534,6 +641,19 @@ if __name__ == "__main__":
     # save out all final results in separate file, just to be save.
     with open(args["output_dir"] + '/scores.txt', 'w') as f:
         with redirect_stdout(f):
+            print("INFO: Training Settings\n",
+                  "\nEPOCHS: ", EPOCHS,
+                  "\nSAVE_WEIGHTS_EVERY: ", SAVE_WEIGHTS_EVERY,
+                  "\nBATCH_SIZE: ", BATCH_SIZE,
+                  "\nVERBOSE: ", VERBOSE,
+                  "\nOPTIMIZER: ", OPTIMIZER,
+                  "\nLEARNING_RATE: ", LEARNING_RATE,
+                  "\nLOSS: ", LOSS,
+                  "\nDATA_PATH: ", DATA_PATH,
+                  "\nTEST_DATA: ", TEST_DATA,
+                  "\nAUGMENTATION: ", AUGMENTATION,
+                  "\nSEED: ", SEED)
+            
             print("INFO: Final classification accuracy: %.4f" % score[1])
             print("INFO: Dataset IDEAL MAPE: %.2f" % MAPE_score_ideal)
             print("INFO: Final CLASS MAPE:   %.2f" % score[2])
