@@ -60,13 +60,13 @@ def compute_scores(input_file,
                    detection_format=False,
                    dataset_name=None,
                    create_plots=True,
-                   exclude_aug=True):
+                   exclude_aug=False):
     """
     replaces original main method, runs all analysis computing
     """
 
     results_dict = {
-        "model": os.path.basename(input_file).split(".")[0].split("---")[0].split("_test_data_pred_results")[0],
+        "model": os.path.basename(input_file).split("---")[0],
         "dataset": dataset_name,
         "inference_type": os.path.basename(input_file).split("_")[0],
         "real data": None,
@@ -111,6 +111,12 @@ def compute_scores(input_file,
     if results_dict["inference_type"] == "CLASS":
         if os.path.basename(input_file).split("_")[3].split("-")[0] == "sigma":
             results_dict["sigma"] = float(os.path.basename(input_file).split("_")[3].split("-")[-1])
+
+    # refine
+    if "REFINE" in os.path.basename(input_file):
+        results_dict["refine"] = "yes"
+    else:
+        results_dict["refine"] = "no"
 
     OUTPUT_LOCATION = output
     input_folder = input_file
@@ -178,8 +184,8 @@ def compute_scores(input_file,
         else:
             REGRESSION = True
 
-    if len(data[0]) < 6 and not DETECTION:  # regressors have fewer lines as the output activations aren't relevant
-        true_classes = [scaled_20.index(int(x.replace("\\", "/").split("/")[-2])) for x in [row[1] for row in data[1:]]]
+    if REGRESSION:  # regressors have fewer lines as the output activations aren't relevant
+        true_classes = [min(range(len(scaled_20)), key=lambda i: abs(scaled_20[i] - int(x.replace("\\", "/").split("/")[-2]))) for x in [row[1] for row in data[1:]]]
         pred_classes = [find_class(twenty_class, float(x)) for x in [row[3] for row in data[1:]]]
         true_weight = [float(x) for x in [row[2] for row in data[1:]]]
         pred_weight = [float(x) for x in [row[3] for row in data[1:]]]
@@ -321,7 +327,10 @@ def compute_scores(input_file,
     output_txt.write("\n Class-wise scores: \n")
 
     for f, gt_cl, p_cl, gt, p in data_comb:
-        file_components = f.split("/")
+        if os.name == 'nt':  # for Windows
+            file_components = f.split("\\")
+        else:  # for Linux
+            file_components = f.split("/")
         class_temp = gt_cl
         # cut away the frame number so individuals have consistent names
         vid = "_".join(file_components[2].split("_")[0:-2]) + "_" + file_components[2].split("_")[-1]

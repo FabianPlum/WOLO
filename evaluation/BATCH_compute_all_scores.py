@@ -32,22 +32,16 @@ def worker(task):
 
 
 if __name__ == '__main__':
-    results_path = "D:/WOLO/BENCHMARK/EVALUATION"
+    results_path = os.path.join("..", "RESULTS")
 
     # [path, special-weight-formatting, detection]
 
-    all_file_paths = [["D:/WOLO/HPC_trained_models/WOLO/TRAINED_MODELS", False, False,
-                       "VAL"],
-                      ["D:/WOLO/BENCHMARK/RESULTS_TEST/CORVIN9000/predictions", False, False,
+    all_file_paths = [[os.path.join("..", "RESULTS-TEST", "VAL", "predictions"), False, False,
+                       "test"],
+                      [os.path.join("..", "RESULTS-TEST", "TEST_B", "predictions"), False, False,
                        "CORVIN9000"],
-                      ["D:/WOLO/BENCHMARK/RESULTS_TEST/DSLR_C920/predictions", False, False,
-                       "DSLR-C920"],
-                      ["D:/WOLO/HPC_trained_models/WOLO_DETECT/RESULTS", False, True,
-                       "VAL"],
-                      ["D:/WOLO/HPC_trained_models/WOLO_DETECT/RESULTS_TEST_128x128_DSLR_C920", False, True,
-                       "DSLR-C920"],
-                      ["D:/WOLO/HPC_trained_models/WOLO_DETECT/RESULTS_TEST_128x128_CORVIN9000", True, True,
-                       "CORVIN9000"]]
+                      [os.path.join("..", "RESULTS-TEST", "TEST_A", "predictions"), False, False,
+                       "DSLR-C920_CLASS"]]
 
     parallel = True
 
@@ -131,7 +125,7 @@ if __name__ == '__main__':
     "COV"
     """
 
-    attributes = ["model", "dataset", "inference_type", "real data", "synth data", "sigma"]
+    attributes = ["model", "dataset", "inference_type", "real data", "synth data", "sigma", "refine"]
 
     out_clean = {}
     for result in out_results:
