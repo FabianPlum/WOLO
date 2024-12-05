@@ -6,8 +6,8 @@ import sys
 model_path = os.path.join("..", "TRAINED_NETWORKS")
 datasets = [
     os.path.join("..", "DATASETS", "CORVIN9000"),
-    os.path.join("..", "DATASETS", "MultiCamAnts", "test")
-    #os.path.join("..", "DATASETS", "DSLR_C920_CLASS")
+    os.path.join("..", "DATASETS", "MultiCamAnts", "test"),
+    os.path.join("..", "DATASETS", "DSLR_C920_CLASS")
 ]
 output_dir = os.path.join("..", "RESULTS-TEST")
 
