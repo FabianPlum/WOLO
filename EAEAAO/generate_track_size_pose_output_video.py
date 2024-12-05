@@ -71,6 +71,9 @@ tracks = import_tracks(input_tracks, numFramesMax,
 print("\nDisplaying tracks loaded from:", input_tracks)
 tracked_frames = len(tracks[0])
 
+# comment this line out, after verifying track locations
+display_video(cap, tracks, show=(start_frame, end_frame), scale=0.2)
+
 # next load all poses and append them to a list
 all_poses = []
 all_sizes = []
@@ -94,10 +97,17 @@ for r, d, f in os.walk(input_poses):
         all_poses.append(df.to_numpy())
         all_pose_ids.append(int(file.split("_")[-1][:-4]))
 
+# Sort poses and sizes based on pose IDs
 all_poses_sorted = [pose for _, pose in sorted(zip(all_pose_ids, all_poses))]
 all_sizes_sorted = [size for _, size in sorted(zip(all_pose_ids, all_sizes))]
 
-compose_video_with_overlay(cap, tracks, poses=all_poses_sorted, scale=1.0, show=(start_frame, end_frame),
+# Continue with video composition using the sorted poses and sizes
+
+# scale needs to be adjusted for the video size!
+# the script expects a 720p video, so we need to scale down the video size accordingly
+# for 4k footage (2160p) to 720p the scale should be 0.33333
+
+compose_video_with_overlay(cap, tracks, poses=all_poses_sorted, scale=1, show=(start_frame, end_frame),
                            size_classes=all_sizes_sorted, constant_frame_rate=False, pose_point_size=2,
-                           video_name="LIGHT-MODE_" + input_video.split("/")[-1], DEBUG=True, thresh=0.5,
-                           lightmode=True, patch_size=128)
+                           video_name="LIGHT-MODE_" + input_video.split("\\")[-1], DEBUG=True, thresh=0.5,
+                           lightmode=True, patch_size=128, pose_size=300)
