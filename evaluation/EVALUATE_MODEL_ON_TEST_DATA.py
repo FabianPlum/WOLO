@@ -20,6 +20,26 @@ import argparse
 import os
 import tensorflow as tf
 
+def get_latest_checkpoint(model_path):
+    """Find the latest checkpoint file in the given directory.
+    
+    Args:
+        model_path: Path to directory containing checkpoint files
+        
+    Returns:
+        String path to latest checkpoint without the .index extension
+    """
+    checkpoints = [f for f in os.listdir(model_path) if f.endswith('.ckpt.index')]
+    latest_checkpoint = max(checkpoints, key=lambda x: int(x.split('-')[1].split('.')[0]))
+    print("\n------------------------------------------------------\n",
+          "INFO: Latest checkpoint:", latest_checkpoint,
+          "\n------------------------------------------------------\n")
+    return latest_checkpoint[:-6]  # Remove .index suffix
+
+import sys
+sys.path.append("../model_training")
+sys.path.append("model_training")
+
 if __name__ == "__main__":
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
@@ -30,7 +50,7 @@ if __name__ == "__main__":
 
     args = vars(ap.parse_args())
 
-    BATCH_SIZE = 128
+    BATCH_SIZE = 256 #adjust this when running out of memory (tests ran on RTX 4090)
     VERBOSE = 2
     LOSS = "categorical_crossentropy"
     OPTIMIZER = "adam"
@@ -51,32 +71,48 @@ if __name__ == "__main__":
         if MODEL_NAME.split("_")[2] == "20":
             INFERENCE_METHOD = "CLASS_20"
             from TF2_SYNTH_CLASSIFICATION import *
-            import TF2_SYNTH_CLASSIFICATION
-        else:
+        elif MODEL_NAME.split("_")[2] == "5":
             INFERENCE_METHOD = "CLASS_5"
             from TF2_SYNTH_CLASSIFICATION_5_CLASS import *
             import TF2_SYNTH_CLASSIFICATION_5_CLASS
+
+        if MODEL_NAME.split("_")[5] == "Vanilla":
+            INFERENCE_METHOD = INFERENCE_METHOD + "_VANILLA"
+
     else:
         INFERENCE_METHOD = "REG"
         from TF2_SYNTH_REGRESSION import *
         import TF2_SYNTH_REGRESSION
 
+        if MODEL_NAME.split("_")[-3] == "Vanilla":
+            INFERENCE_METHOD = INFERENCE_METHOD + "_VANILLA"
+
     print("INFO: Evaluating", MODEL_NAME, "on", str(os.path.basename(DATA_PATH)))
     print("INFO: Inference method:", INFERENCE_METHOD)
 
-    if INFERENCE_METHOD == "REG":
-        if MODEL_NAME.split("_")[-1] == "LOG":
-            LOSS = MODEL_NAME.split("_")[-2]
+    if INFERENCE_METHOD[:3] == "REG":
+        if "COMB" in MODEL_NAME:
+            # this is somewhat hard-coded but it's the only combination tested here.
+            LOSS = custom_regression_loss(alpha=0.5, beta=0.5)
+        else:
+            LOSS = MODEL_NAME.split("_")[2]
+
+        if "LOG" in MODEL_NAME:
             LOG = True
             TF2_SYNTH_REGRESSION.LOG = True
         else:
-            LOSS = MODEL_NAME.split("_")[-1]
             LOG = False
             TF2_SYNTH_REGRESSION.LOG = False
 
         print("\nINFO: Loading model...\n")
-        model = build_with_Xception(input_shape=INPUT_SHAPE_RGB, output_nodes=1)
-        model.load_weights(os.path.join(MODEL_PATH, "cp-0050.ckpt"))
+        if INFERENCE_METHOD == "REG_VANILLA":
+            print("INFO: Using simple CNN architecture")
+            model = build_simple_cnn(input_shape=INPUT_SHAPE_RGB, output_nodes=1)
+        else:
+            print("INFO: Using Xception backbone")
+            model = build_with_Xception(input_shape=INPUT_SHAPE_RGB, output_nodes=1)
+            
+        model.load_weights(os.path.join(MODEL_PATH, get_latest_checkpoint(MODEL_PATH))).expect_partial()
 
         model.compile(loss=LOSS,
                       optimizer=OPTIMIZER,
@@ -132,10 +168,16 @@ if __name__ == "__main__":
 
         print("INFO: Export complete.")
 
-    if INFERENCE_METHOD == "CLASS_20":
+    if INFERENCE_METHOD == "CLASS_20" or INFERENCE_METHOD == "CLASS_20_VANILLA":
         print("\nINFO: Loading model...\n")
-        model = build_with_Xception(input_shape=INPUT_SHAPE_RGB, output_nodes=20)
-        model.load_weights(os.path.join(MODEL_PATH, "cp-0050.ckpt"))
+        if INFERENCE_METHOD == "CLASS_20":
+            model = build_with_Xception(input_shape=INPUT_SHAPE_RGB, output_nodes=20)
+            print("\nINFO: Using Xception backbone")
+        else:
+            model = build_simple_cnn(input_shape=INPUT_SHAPE_RGB, output_nodes=20)
+            print("\nINFO: Using simple CNN architecture")
+
+        model.load_weights(os.path.join(MODEL_PATH, get_latest_checkpoint(MODEL_PATH))).expect_partial()
 
         model.compile(loss=LOSS,
                       optimizer=OPTIMIZER,
@@ -157,8 +199,6 @@ if __name__ == "__main__":
 
         score = model.evaluate(test_ds, verbose=VERBOSE)
         y_pred = model.predict(test_ds, verbose=VERBOSE)
-        print("\nINFO: Computing MAPE true...\n")
-        MAPE_score_true, MAPE_score_ideal = MAPE_true(y_gt_test, y_pred)
 
         # get predicted class from one_hot encoded prediction vector
         y_pred_class = np.argmax(y_pred, axis=1)
@@ -173,9 +213,7 @@ if __name__ == "__main__":
         class_list_str = ["class_activation_" + str(i) for i in class_list]
 
         print("\nINFO: Final classification accuracy: %.4f" % score[1])
-        print("INFO: Dataset IDEAL MAPE: %.2f" % MAPE_score_ideal)
         print("INFO: Final CLASS MAPE:   %.2f" % score[2])
-        print("INFO: Final TRUE  MAPE:   %.2f" % MAPE_score_true)
 
         print("\n------------------------------------------------------------------------")
 
@@ -185,9 +223,7 @@ if __name__ == "__main__":
         with open(os.path.join(OUTPUT_DIR, 'scores.txt'), 'w') as f:
             with redirect_stdout(f):
                 print("INFO: Final classification accuracy: %.4f" % score[1])
-                print("INFO: Dataset IDEAL MAPE: %.2f" % MAPE_score_ideal)
                 print("INFO: Final CLASS MAPE:   %.2f" % score[2])
-                print("INFO: Final TRUE  MAPE:   %.2f" % MAPE_score_true)
 
         out_df = pd.DataFrame({"file": X_test,
                                "gt_class": y_test,
@@ -203,10 +239,14 @@ if __name__ == "__main__":
 
         print("INFO: Export complete.")
 
-    if INFERENCE_METHOD == "CLASS_5":
+    if INFERENCE_METHOD[:7] == "CLASS_5":
         print("\nINFO: Loading model...\n")
-        model = build_with_Xception(input_shape=INPUT_SHAPE_RGB, output_nodes=5)
-        model.load_weights(os.path.join(MODEL_PATH, "cp-0050.ckpt"))
+        if INFERENCE_METHOD == "CLASS_5":
+            model = build_with_Xception(input_shape=INPUT_SHAPE_RGB, output_nodes=5)
+        else:
+            model = build_simple_cnn(input_shape=INPUT_SHAPE_RGB, output_nodes=5)
+
+        model.load_weights(os.path.join(MODEL_PATH, get_latest_checkpoint(MODEL_PATH))).expect_partial()
 
         model.compile(loss=LOSS,
                       optimizer=OPTIMIZER,
@@ -230,8 +270,6 @@ if __name__ == "__main__":
 
         score = model.evaluate(test_ds, verbose=VERBOSE)
         y_pred = model.predict(test_ds, verbose=VERBOSE)
-        print("\nINFO: Computing MAPE true...\n")
-        MAPE_score_true, MAPE_score_ideal = MAPE_true(y_gt_test, y_pred)
 
         # get predicted class from one_hot encoded prediction vector
         y_pred_class = np.argmax(y_pred, axis=1)
@@ -243,9 +281,7 @@ if __name__ == "__main__":
         class_list_str = ["class_activation_" + str(i) for i in class_list]
 
         print("\nINFO: Final classification accuracy: %.4f" % score[1])
-        print("INFO: Dataset IDEAL MAPE: %.2f" % MAPE_score_ideal)
         print("INFO: Final CLASS MAPE:   %.2f" % score[2])
-        print("INFO: Final TRUE  MAPE:   %.2f" % MAPE_score_true)
 
         print("\n------------------------------------------------------------------------")
 
@@ -255,9 +291,7 @@ if __name__ == "__main__":
         with open(os.path.join(OUTPUT_DIR, 'scores.txt'), 'w') as f:
             with redirect_stdout(f):
                 print("INFO: Final classification accuracy: %.4f" % score[1])
-                print("INFO: Dataset IDEAL MAPE: %.2f" % MAPE_score_ideal)
                 print("INFO: Final CLASS MAPE:   %.2f" % score[2])
-                print("INFO: Final TRUE  MAPE:   %.2f" % MAPE_score_true)
 
         out_df = pd.DataFrame({"file": X_test,
                                "gt_class": y_test,
