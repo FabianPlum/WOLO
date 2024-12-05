@@ -11,7 +11,7 @@ from sklearn.utils import shuffle
 
 
 def import_tracks(path, numFrames, export=False,
-                  min_track_length=0, strip_tail_frames=0, min_movement_px=0,
+                  min_track_length=0, strip_tail_frames=0, strip_head_frames=0, min_movement_px=0,
                   VERBOSE=True, custom_order=None):
     """
     Import all tracked paths (using blender motionExport.py) from specified folder and join them to a single array.
@@ -42,6 +42,9 @@ def import_tracks(path, numFrames, export=False,
             df = pd.read_csv(os.path.join(path, file), delimiter=';')
 
             track_temp = df[["frame", "x", "y"]].to_numpy()
+            
+            if strip_head_frames > 0:
+                track_temp = track_temp[strip_head_frames:]
 
             if strip_tail_frames > 0:
                 track_temp = track_temp[:-strip_tail_frames]
@@ -75,6 +78,9 @@ def import_tracks(path, numFrames, export=False,
 
                 track_temp = df[["frame", "x", "y"]].to_numpy()
 
+                if strip_head_frames > 0:
+                    track_temp = track_temp[strip_head_frames:]
+               
                 if strip_tail_frames > 0:
                     track_temp = track_temp[:-strip_tail_frames]
 
@@ -111,7 +117,7 @@ def import_tracks(path, numFrames, export=False,
     return tracks[:, : 1 + imported * 2]
 
 
-def display_video(cap, tracks, show=(0, math.inf), scale=1.0):
+def display_video(cap, tracks, show=(0, math.inf), scale=1.0, frame_shift=0):
     """
     Function displays imported footage with tracking results as overlay
 
@@ -157,9 +163,9 @@ def display_video(cap, tracks, show=(0, math.inf), scale=1.0):
 
         # iterate through all columns and draw rectangles for all non 0 values
         for track in range(math.floor(((tracks.shape[1]) - 1) / 2)):
-            if tracks[frame_num, track * 2 + 1] != 0:
+            if tracks[frame_num - frame_shift, track * 2 + 1] != 0:
                 # the tracks are read as centres
-                target_centre = np.asarray([tracks[frame_num, track * 2 + 1], tracks[frame_num, track * 2 + 2]])
+                target_centre = np.asarray([tracks[frame_num - frame_shift, track * 2 + 1], tracks[frame_num - frame_shift, track * 2 + 2]])
 
                 # invert y axis, to fit openCV convention ( lower left -> (x=0,y=0) )
                 target_centre[1] = new_height - target_centre[1]
@@ -435,7 +441,7 @@ def compose_video_with_overlay(cap, tracks, size_classes=None, poses=None, show=
                             point = temp_pose[0][p * 3 + 1:p * 3 + 3]
                             # convert the location to the full frame equivalent
                             # first down scale (from 300 to 128)
-                            point_rescaled = (point / pose_size) * patch_size
+                            point_rescaled = (point / pose_size) * patch_size * scale
                             # then add the track centre
                             point_global = point_rescaled + px_start
                             frame = cv2.circle(frame, (int(point_global[0]), int(point_global[1])),
